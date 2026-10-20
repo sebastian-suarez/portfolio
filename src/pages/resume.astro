@@ -1,0 +1,72 @@
+---
+import Base from '../layouts/Base.astro';
+import '../styles/resume.css';
+import { mailto, site } from '../data/site';
+import { career, cvTitle, education, languages, overlapNote, skillGroups, summary } from '../data/cv';
+
+// Every link is root-absolute: CloudFront serves /resume by rewriting to /resume/index.html,
+// so relative links would resolve against / and break.
+const title = `Résumé — ${site.name}`;
+const description = `Experience, technical skills, education and contact for ${site.name}.`;
+---
+
+<Base title={title} description={description} bodyClass="resume-page">
+  <a class="skip-link" href="#resume-main">Skip to résumé</a>
+  <nav class="resume-nav" aria-label="Résumé navigation">
+    <a href="/">Portfolio</a>
+    <a href={mailto}>Email Sebastian</a>
+  </nav>
+  <main id="resume-main" class="resume" tabindex="-1">
+    <header class="resume-header">
+      <p class="kicker">Résumé</p>
+      <h1>{site.name}</h1>
+      <p class="role">{cvTitle}</p>
+      <p>{site.location} · <a href={mailto}>{site.email}</a></p>
+      <div class="profiles">
+        <a href={site.github}>GitHub</a>
+        <a href={site.linkedin}>LinkedIn</a>
+        <a href="/">sebastiansuarez.dev</a>
+      </div>
+    </header>
+    <section aria-labelledby="summary-title">
+      <h2 id="summary-title">Professional summary</h2>
+      <p>{summary}</p>
+    </section>
+    <section aria-labelledby="skills-title">
+      <h2 id="skills-title">Technical skills</h2>
+      {skillGroups.map((group) => <p><strong>{group.title}:</strong> {group.items.join(', ')}</p>)}
+    </section>
+    <section aria-labelledby="career-title">
+      <h2 id="career-title">Work experience</h2>
+      <p class="note">{overlapNote}</p>
+      {
+        career.map((role) => (
+          <article>
+            <h3>
+              {role.title} <span>· {role.employer}</span>
+            </h3>
+            <p class="dates">
+              {role.dates} · {role.location}
+            </p>
+            {role.paragraphs.map((text) => <p>{text}</p>)}
+          </article>
+        ))
+      }
+    </section>
+    <section aria-labelledby="education-title">
+      <h2 id="education-title">Education</h2>
+      <p>
+        <strong>{education.degree}</strong><br />
+        {education.school} · {education.location} · {education.date}
+      </p>
+    </section>
+    <section aria-labelledby="language-title">
+      <h2 id="language-title">Languages</h2>
+      <p>{languages.join(' · ')}</p>
+    </section>
+  </main>
+  <footer class="resume-footer">
+    <a href="/">Back to portfolio</a>
+    <a href="#resume-main">Back to top</a>
+  </footer>
+</Base>

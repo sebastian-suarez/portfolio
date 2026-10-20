@@ -8,8 +8,8 @@ export interface Project {
   title: string;
   blurb: string;
   tags: string[];
-  /** Replace the placeholder with the real repository URL. */
-  repo: string;
+  /** Public repository. Leave out while the repo is private; the card then shows no link. */
+  repo?: string;
   diagram: DiagramData;
 }
 
@@ -20,7 +20,6 @@ export const projects: Project[] = [
     blurb:
       'Force feedback for a Logitech RS50 under Wine on Apple Silicon. A DirectInput proxy inside the bottle, a Rust daemon on the host, GPL-2.0.',
     tags: ['Rust', 'hidapi', 'DirectInput', 'Wine'],
-    repo: 'https://github.com/',
     diagram: milestones,
   },
   {
@@ -29,7 +28,7 @@ export const projects: Project[] = [
     blurb:
       "A fork of microsoft/vscode following VSCodium's patch set. The first repo run through my multi-model harness: Claude Code implements, Codex reviews, nothing merges unreviewed.",
     tags: ['TypeScript', 'Electron', 'Claude Code', 'Codex'],
-    repo: 'https://github.com/',
+    repo: 'https://github.com/sebastian-suarez/VSebCode',
     diagram: reviewGate,
   },
   {
@@ -38,7 +37,7 @@ export const projects: Project[] = [
     blurb:
       'A Clean Architecture and DDD template with an AGENTS.md kernel, mapped to six target types from MCP servers to embedded. The base for my Obsidian MCP server.',
     tags: ['TypeScript', 'Node.js', 'DDD', 'MCP'],
-    repo: 'https://github.com/',
+    repo: 'https://github.com/sebastian-suarez/Clean-architecture-template',
     diagram: rings,
   },
 ];
