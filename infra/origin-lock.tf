@@ -14,8 +14,8 @@ locals {
   origin_verify_sent     = "1"
 }
 
-# Kept only in the state (private, encrypted bucket). Letters and digits, so the value needs no
-# escaping in a header.
+# Stored in the state (private, encrypted bucket) and in the Cloudflare rule below, so whoever can
+# read either can read it (README.md, Origin lock). Letters and digits: no escaping in a header.
 resource "random_password" "origin_verify" {
   for_each = toset(local.origin_verify_accepted)
 
@@ -58,8 +58,10 @@ resource "cloudflare_ruleset" "request_headers" {
   depends_on = [aws_cloudfront_function.viewer_request]
 
   lifecycle {
-    # Checked in every plan, and in the apply right before this rule changes: Cloudflare never
-    # switches secrets while CloudFront runs code that may not accept the new one.
+    # Checked when planning and, if the function changes in the same apply, again after it is
+    # published. CI plans and applies seconds apart in one job, so Cloudflare doesn't switch
+    # secrets while CloudFront runs stale code. It can't see distribution deployment: edges pick
+    # up a publish only once the distribution is Deployed again (README.md, Origin lock, Rotation).
     precondition {
       condition     = data.aws_cloudfront_function.viewer_request_live.code == aws_cloudfront_function.viewer_request.code
       error_message = "The CloudFront Function's LIVE stage does not run the configured code (a failed publish?). Publish it as infra/README.md (Origin lock, Recovery) shows, then re-run."

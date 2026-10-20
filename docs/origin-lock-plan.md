@@ -15,7 +15,7 @@ Goal: the site is reachable only through Cloudflare, so Cloudflare analytics, WA
 - D. Serve the site from Cloudflare (Workers static assets) and drop CloudFront and S3. Removes the bypass entirely, but it is a hosting migration.
 
 ## Design (option A)
-- **Secret:** `random_password.origin_verify`, one per generation (`for_each`; 64 letters and digits; new `hashicorp/random` provider), stored only in the private, encrypted state. `local.origin_verify_accepted` lists the generations CloudFront accepts and `local.origin_verify_sent` names the one Cloudflare sends. Both start at `"1"`.
+- **Secret:** `random_password.origin_verify`, one per generation (`for_each`; 64 letters and digits; new `hashicorp/random` provider), stored in the private, encrypted state and in the Cloudflare rule. `local.origin_verify_accepted` lists the generations CloudFront accepts and `local.origin_verify_sent` names the one Cloudflare sends. Both start at `"1"`.
 - **Cloudflare:** `cloudflare_ruleset` for the zone's `http_request_late_transform` phase (no ruleset exists there today). One rule: `http.host in {"sebastiansuarez.dev" "www.sebastiansuarez.dev"} and ssl` sets `x-origin-verify`.
   - `ssl` keeps the secret off plain-HTTP origin connections. The host list keeps it away from the proxied `alerts` record.
   - The whole `rules` list is wrapped in `sensitive()`. A mark on the secret alone would not cover a copy of the rule that appears through dashboard drift, and the plan summary is public.
@@ -25,7 +25,7 @@ Goal: the site is reachable only through Cloudflare, so Cloudflare analytics, WA
   - The header is removed before the request continues. The `www` redirect and `/dir/` rewrite stay as they are, after the check.
   - HTTP requests never reach the function: CloudFront's redirect-to-https runs first (checked: `http://www.…/resume/?a=1` → 301 to `https://www.…`, "Redirect from cloudfront").
 - **Report mode:** `var.origin_lock_enforce` (bool). When false, a failed check only writes a `console.log` line and the request is served as today. Lines go to CloudWatch Logs, us-east-1, `/aws/cloudfront/function/portfolio-viewer-request` (the logging role exists), with the host and whether `cf-ray` was present, never the header value.
-- **Publish guard:** a `precondition` on the Cloudflare ruleset requires the function's LIVE code (data source, stage `LIVE`) to equal the configured code. The AWS provider (6.69.1) reads code from the DEVELOPMENT stage, so a failed publish would otherwise leave LIVE stale while plans show no changes. With the guard, every later plan fails until LIVE matches, and an apply never changes what Cloudflare sends while LIVE is stale. (The first idea, comparing `live_stage_etag` with `etag`, fails: each stage numbers its own ETags, so they differ after updates even when LIVE is current. Seen in the `TestFunction` run.)
+- **Publish guard:** a `precondition` on the Cloudflare ruleset requires the function's LIVE code (data source, stage `LIVE`) to equal the configured code. The AWS provider (6.69.1) reads code from the DEVELOPMENT stage, so a failed publish would otherwise leave LIVE stale while plans show no changes. With the guard, every later plan fails until LIVE matches, and an apply that publishes new code checks LIVE again before it changes what Cloudflare sends. (The first idea, comparing `live_stage_etag` with `etag`, fails: each stage numbers its own ETags, so they differ after updates even when LIVE is current. Seen in the `TestFunction` run.)
 - **Ordering:** the ruleset `depends_on` the function, so a change publishes the function before Cloudflare changes what it sends. If publishing fails, the apply stops and Cloudflare keeps sending a secret the live function accepts.
 - **Docs:** README (how it works, rotation, recovery, token scopes, and that OpenTofu now owns the zone's request header rules, so ones added in the dashboard get removed on the next apply), and the token comment in `providers.tf`.
 
@@ -58,13 +58,14 @@ Goal: the site is reachable only through Cloudflare, so Cloudflare analytics, WA
 
 ## Rotation (no downtime, no bypass window)
 Three PRs, each applied before the next:
-1. Add generation `"2"` to `origin_verify_accepted`. CloudFront accepts both; Cloudflare still sends `"1"`. Wait a few minutes for the function to reach all edges.
-2. Set `origin_verify_sent = "2"`.
+1. Add generation `"2"` to `origin_verify_accepted`. CloudFront accepts both; Cloudflare still sends `"1"`. Wait until the distribution is `Deployed` again: edges pick up a published function only once the distribution finishes deploying ([docs](https://docs.aws.amazon.com/AmazonCloudFront/latest/DeveloperGuide/publish-function.html)).
+2. Set `origin_verify_sent = "2"`, then wait a few minutes.
 3. Remove `"1"`.
 If step 1's publish failed, the guard fails step 2's plan, so Cloudflare never switches to a secret the live function rejects.
 
 ## Accepted risks
-- The secret is in the OpenTofu state, readable by the plan and apply roles and by admins (the state already holds the rest of the config). A PR from a branch of this repo could print it in its plan; only the owner can push branches.
+- The secret is stored in the OpenTofu state and in the Cloudflare rule: admins, the plan and apply roles and both CI tokens can read it, and saved plan files hold it (CI's `tfplan` is never uploaded). A PR from a branch of this repo could print it in its plan; only the owner can push branches.
+- When only the Cloudflare rule changes, the LIVE-code guard reads LIVE at plan time; CI applies seconds later in the same job.
 - Plans no longer show the Cloudflare rule's expression; review it in the PR diff.
 - The report-mode log group is created by CloudFront with no retention. Few lines are written, and enforce mode writes none; set a retention or delete it by hand afterwards.
 - Request header rules for this zone are managed only in OpenTofu from now on.
@@ -77,3 +78,9 @@ Accepted:
 
 Rejected:
 - "Require a Cloudflare HTTP→HTTPS redirect before adding the header": with `and ssl` the header is never added to HTTP requests, and CloudFront already redirects HTTP before the function runs.
+
+## Review log (implementation, round 1: two independent reviews)
+Neither found a blocking defect in the report-mode change. Accepted, all wording fixes:
+- Rotation step 1 now waits for the distribution to be `Deployed`, not "a few minutes" (AWS docs: edges use a published function once the distribution finishes deploying).
+- The guard's comment overstated it: for a rule-only change it reads LIVE at plan time, not during the apply. Documented, with the seconds-long gap in CI as an accepted risk.
+- "Kept only in the state" was wrong: the Cloudflare rule stores the secret too, readable with Transform Rules Read. Documented who can read it.
