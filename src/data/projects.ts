@@ -1,7 +1,9 @@
 import type { DiagramData } from '../components/diagram/types';
+import { iacSplit } from '../components/diagram/iacSplit';
 import { milestones } from '../components/diagram/milestones';
 import { reviewGate } from '../components/diagram/reviewGate';
 import { rings } from '../components/diagram/rings';
+import { repoUrl } from './howItWorks';
 
 export interface Project {
   slug: string;
@@ -10,6 +12,8 @@ export interface Project {
   tags: string[];
   /** Public repository. Leave out while the repo is private; the card then shows no link. */
   repo?: string;
+  /** A page on this site with the full story. Root-absolute, since pages are served at rewritten paths. */
+  page?: { href: string; label: string };
   diagram: DiagramData;
 }
 
@@ -39,5 +43,15 @@ export const projects: Project[] = [
     tags: ['TypeScript', 'Node.js', 'DDD', 'MCP'],
     repo: 'https://github.com/sebastian-suarez/Clean-architecture-template',
     diagram: rings,
+  },
+  {
+    slug: 'portfolio',
+    title: 'This portfolio',
+    blurb:
+      "The site you are reading. Static Astro pages in a private S3 bucket behind CloudFront and Cloudflare, infrastructure in OpenTofu, and CI that can't edit the IAM roles it runs as.",
+    tags: ['Astro', 'OpenTofu', 'AWS', 'Cloudflare', 'GitHub Actions'],
+    repo: repoUrl,
+    page: { href: '/how-it-works/', label: 'How it works' },
+    diagram: iacSplit,
   },
 ];
