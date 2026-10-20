@@ -13,7 +13,7 @@ The guides say what should be done; the page states only what is live. Live stat
 Live, so it goes on the page:
 - **AWS:** root MFA, no root access keys, centralized root access management. No IAM users: people sign in through IAM Identity Center (4-hour sessions) and CI through GitHub OIDC roles. An organization CloudTrail trail (all Regions, log file validation, KMS, CloudWatch Logs) with four alarms that email. AWS Config (continuous recording, 18 managed rules of its own besides Security Hub's), GuardDuty (high-severity findings email), Security Hub (Foundational Security Best Practices and CIS), Inspector, IAM Access Analyzer (external and unused access). S3 Block Public Access for the whole account, EBS encryption by default. A $20 monthly budget, Cost Anomaly Detection and a billing alarm.
 - **Cloudflare (Free plan):** 2FA, Cloudflare Registrar, DNSSEC. Apex and www are proxied to CloudFront; the ACM validation and mail records are DNS-only. Full (strict), TLS 1.3, Automatic HTTPS Rewrites, HTTP/3, Browser Integrity Check, Email Address Obfuscation, AI crawler blocking. iCloud+ mail with SPF, DKIM and DMARC `p=reject`. Two CI tokens scoped to the zone. `Project=portfolio` tags.
-- **GitHub:** a ruleset on `main` (pull requests only, `Build` and `Terraform plan` required, no force push or deletion, no bypass). The `production` and `infra` environments accept `main` only. The default workflow token is read-only. Secret scanning with push protection. Dependabot version updates.
+- **GitHub:** a ruleset on `main` (pull requests only, `Build` and `Terraform plan` required, no force push or deletion, no bypass). The `production`, `infra` and `infra-iam` environments accept `main` only. The default workflow token is read-only. Secret scanning with push protection. Dependabot version updates.
 
 Anything a guide asks for that is not live stays off the page and out of this repo, which is public; the owner gets that list privately.
 
@@ -22,7 +22,7 @@ Never on the page: account, distribution or zone IDs, ARNs, email addresses, tok
 ## Changes
 
 1. **Hero:** a new `siteFlow` diagram, 600 × 440, in the torque path's U layout. Pull request → GitHub Actions → S3 bucket, down to CloudFront → Cloudflare → your browser, in two panels: publish on every merge, serve on every visit. The caption gives one sentence and links to `/how-it-works/`. `torquePath.ts` is deleted; nothing else uses it.
-2. **Own projects:** a fourth card, "This portfolio", with a blurb, service chips, the public repo link and a link to the page. Its `iacSplit` diagram shows the split: a laptop applies the IAM stack, which defines the roles; GitHub Actions assumes them to plan and apply the site stack, which holds no IAM. The intro becomes "Four of my own projects…". `ProjectCard` gets an optional internal link.
+2. **Own projects:** a fourth card, "This portfolio", with a blurb, service chips, the public repo link and a link to the page. Its `iacSplit` diagram shows the split: a person applies the bootstrap stack (OIDC provider, permissions boundary, IAM-apply role) from a laptop; GitHub Actions applies the IAM stack, whose roles carry the boundary, and then the site stack, which holds no IAM. The intro becomes "Four of my own projects…". `ProjectCard` gets an optional internal link.
 3. **New page** `src/pages/how-it-works.astro`, in the 404 page's shell (`Header base="/"`, root-absolute links, light field, footer):
    - Intro: h1, lede, the as-of date (20 Oct 2026) and the `siteFlow` diagram.
    - From an edit to production: a `pipeline` diagram (local dev → pull request → required checks → merge → deploy, plus the infra apply; IAM from the laptop) and four short paragraphs.
@@ -54,6 +54,14 @@ Never on the page: account, distribution or zone IDs, ARNs, email addresses, tok
 
 - The hero loses the RS50 diagram; the RS50 card keeps its milestones diagram.
 - The page goes stale when the setup changes. The as-of date says when it was true; a change to `infra/` or to either account should update the page.
+
+## Main moved during the work
+
+PRs #7 (the first stage of the origin lock) and #8 (IAM applied from Actions under a permissions boundary) merged while this PR was open. Main was merged into the branch and the new setup verified live on 20 Oct 2026:
+- the boundary sits on the deploy, plan and apply roles;
+- the IAM-apply role trusts only the `infra-iam` environment, which takes `main` only, with no admin bypass.
+
+The infrastructure split, the pipeline, the services list and the card now describe three stacks. The origin lock stays off the page for now; add it when its rollout is finished.
 
 ## Review log
 

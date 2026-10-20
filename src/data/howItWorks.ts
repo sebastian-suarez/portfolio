@@ -29,7 +29,7 @@ export const services: ServiceStage[] = [
     items: [
       { name: 'GitHub', role: 'public repository; main takes pull requests only' },
       { name: 'GitHub Actions', role: 'CI, Infra and Deploy workflows' },
-      { name: 'GitHub environments', role: 'production and infra, main only' },
+      { name: 'GitHub environments', role: 'production, infra and infra-iam, main only' },
       { name: 'Dependabot', role: 'weekly grouped updates' },
       { name: 'Secret scanning', role: 'with push protection' },
     ],
@@ -38,7 +38,7 @@ export const services: ServiceStage[] = [
     id: 'iac',
     title: 'Infrastructure as code',
     items: [
-      { name: 'OpenTofu 1.13', role: 'the site stack and the IAM stack' },
+      { name: 'OpenTofu 1.13', role: 'the site, IAM and bootstrap stacks' },
       { name: 'S3 state bucket', role: 'versioned, encrypted, native locking' },
       { name: 'AWS Resource Group', role: 'lists what is tagged for the project' },
     ],
@@ -60,7 +60,8 @@ export const services: ServiceStage[] = [
     items: [
       { name: 'IAM Identity Center', role: 'sign-in for people' },
       { name: 'IAM OIDC provider', role: 'GitHub Actions without stored keys' },
-      { name: 'IAM roles', role: 'deploy, plan and apply, one per job context' },
+      { name: 'IAM roles', role: 'deploy, plan, apply and IAM apply, one per job context' },
+      { name: 'Permissions boundary', role: 'the ceiling for every role CI manages' },
       { name: 'Cloudflare API tokens', role: 'two, limited to this zone' },
     ],
   },
