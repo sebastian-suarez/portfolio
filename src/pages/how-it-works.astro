@@ -1,0 +1,329 @@
+---
+import Base from '../layouts/Base.astro';
+import { Header } from '../components/Header';
+import { LightField } from '../components/LightField';
+import { Diagram } from '../components/diagram/Diagram';
+import { siteFlow } from '../components/diagram/siteFlow';
+import { pipeline } from '../components/diagram/pipeline';
+import { requestPath } from '../components/diagram/requestPath';
+import { iacSplit } from '../components/diagram/iacSplit';
+import { awsAccount } from '../components/diagram/awsAccount';
+import { cloudflareZone } from '../components/diagram/cloudflareZone';
+import { repoUrl, services, setupCheckedOn } from '../data/howItWorks';
+import { site } from '../data/site';
+
+// CloudFront serves /how-it-works by rewriting it to /how-it-works/index.html, so every link and asset is
+// root-absolute or a #fragment. The claims below were checked against the live setup on setupCheckedOn.
+const FLOW_MIN_SCALE = 0.58;
+const DIAGRAM_MIN_SCALE = 0.6;
+
+const toc = [
+  { href: '#pipeline', label: 'From an edit to production' },
+  { href: '#serving', label: 'Serving a request' },
+  { href: '#iac', label: 'Infrastructure as code' },
+  { href: '#aws', label: 'The AWS account' },
+  { href: '#cloudflare', label: 'The Cloudflare account' },
+  { href: '#services', label: 'Every service' },
+];
+---
+
+<Base
+  title={`How this site works — ${site.name}`}
+  description="How sebastiansuarez.dev is built, shipped and served: Astro, GitHub Actions, OpenTofu, AWS and Cloudflare, and how both cloud accounts are secured."
+>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="top" class="page">
+    <LightField variant="top" />
+    <Header base="/" />
+    <main id="main" tabindex="-1">
+      <section class="hiw-intro wrap" aria-labelledby="hiw-title">
+        <div>
+          <p class="hiw-kicker">Under the hood</p>
+          <h1 id="hiw-title" class="enter">How this site works</h1>
+          <p class="hiw-lede enter d1">
+            A static site on AWS behind Cloudflare, shipped by GitHub Actions and described in OpenTofu. Here is every
+            service, from a local edit to your screen, and how the two cloud accounts behind it are secured.
+          </p>
+          <p class="hiw-asof enter d1">
+            Checked against the live setup on <time datetime={setupCheckedOn.iso}>{setupCheckedOn.label}</time>. The
+            code is public on <a href={repoUrl}>GitHub</a>.
+          </p>
+          <nav class="enter d2" aria-label="On this page">
+            <ul class="hiw-toc">
+              {
+                toc.map((item) => (
+                  <li>
+                    <a class="plate" href={item.href}>
+                      {item.label}
+                    </a>
+                  </li>
+                ))
+              }
+            </ul>
+          </nav>
+        </div>
+        <figure class="glass-panel hiw-figure enter d3">
+          <Diagram data={siteFlow} minScale={FLOW_MIN_SCALE} />
+          <figcaption>From a merged pull request to your browser.</figcaption>
+        </figure>
+      </section>
+
+      <section id="pipeline" class="hiw-section wrap" aria-labelledby="pipeline-title">
+        <div class="hiw-panel glass-panel">
+          <div class="hiw-head">
+            <h2 id="pipeline-title">From an edit to production</h2>
+            <p>Nothing reaches the site without a pull request, two passing checks and a merge.</p>
+          </div>
+          <figure class="hiw-figure-inline">
+            <Diagram data={pipeline} minScale={DIAGRAM_MIN_SCALE} />
+            <figcaption>Two required checks gate every merge; what the merge changed decides what runs next.</figcaption>
+          </figure>
+          <ul class="hiw-points">
+            <li>
+              <strong>Local.</strong> Astro builds plain HTML and CSS. React components render at build time, so no
+              framework ships to your browser. Tailwind CSS 4 styles the pages, and <code>astro check</code> catches type
+              errors.
+            </li>
+            <li>
+              <strong>Pull request.</strong> <code>main</code> only takes pull requests: no direct pushes, no force pushes,
+              no deletion and no bypass. Build runs a clean install and the production build. Terraform plan runs on every
+              pull request; when the infrastructure changed, it formats and validates all three stacks, plans the IAM and
+              site stacks with a read-only role and posts the plans to the job summary.
+            </li>
+            <li>
+              <strong>Forks and bots.</strong> Pull requests from forks or Dependabot get no cloud credentials, so they can
+              bump dependencies but can't change the infrastructure.
+            </li>
+            <li>
+              <strong>Merge.</strong> A merge that changes the site runs the deploy job in the <code>production</code>
+              environment. It builds the site, assumes the deploy role with GitHub's OIDC token, syncs the files to S3 and
+              invalidates CloudFront.
+            </li>
+            <li>
+              <strong>Caching.</strong> Hashed assets are cached for a year. Browsers revalidate HTML on every visit, and
+              each deploy invalidates CloudFront, so a change is live as soon as the invalidation finishes.
+            </li>
+            <li>
+              <strong>Infrastructure.</strong> A merge that changes <code>infra/</code> runs two apply jobs: the IAM stack
+              in the <code>infra-iam</code> environment, then the site stack in the <code>infra</code> environment. Both
+              apply the tip of <code>main</code>, one run at a time, so re-running an old job can't roll anything back.
+            </li>
+            <li>
+              <strong>Upkeep.</strong> Dependabot opens grouped weekly updates, and push protection blocks pushes that
+              contain known kinds of secrets.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="serving" class="hiw-section wrap" aria-labelledby="serving-title">
+        <div class="hiw-panel glass-panel">
+          <div class="hiw-head">
+            <h2 id="serving-title">Serving a request</h2>
+            <p>Three hops, each with one job: Cloudflare in front, CloudFront as the CDN, S3 as a private origin.</p>
+          </div>
+          <figure class="hiw-figure-inline">
+            <Diagram data={requestPath} minScale={DIAGRAM_MIN_SCALE} />
+            <figcaption>What each hop does with your request.</figcaption>
+          </figure>
+          <ul class="hiw-points">
+            <li>
+              <strong>Cloudflare</strong> serves the domain's DNS, signed with DNSSEC. The apex and www are proxied, so you
+              meet Cloudflare's edge: TLS 1.3, HTTP/3, the browser integrity check, email obfuscation and AI crawler
+              blocking.
+            </li>
+            <li>
+              <strong>Full (strict) TLS.</strong> Cloudflare only connects to CloudFront when CloudFront presents a valid
+              certificate for the domain.
+            </li>
+            <li>
+              <strong>CloudFront</strong> holds an ACM certificate for both names, validated through records in Cloudflare
+              and renewed automatically. It redirects plain HTTP to HTTPS.
+            </li>
+            <li>
+              <strong>A CloudFront Function</strong> runs on every request. It redirects www to the apex and maps folder
+              paths like <code>/resume</code> to <code>/resume/index.html</code>, because S3 has no index documents.
+            </li>
+            <li>
+              <strong>Managed policies</strong> set the caching and add security headers, including a one-year HSTS
+              header. A missing page gets the site's own 404 page, with status 404.
+            </li>
+            <li>
+              <strong>S3</strong> keeps the files in a private bucket with every public access setting blocked. Visitors
+              only get files through CloudFront, which signs its reads with origin access control. Versioning keeps 30
+              days of old files, so a bad deploy can be rolled back.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="iac" class="hiw-section wrap" aria-labelledby="iac-title">
+        <div class="hiw-panel glass-panel">
+          <div class="hiw-head">
+            <h2 id="iac-title">Infrastructure as code</h2>
+            <p>
+              The site's AWS resources and DNS records live in OpenTofu, in three stacks. CI applies two of them, and every
+              role it manages stays under a ceiling only a person can move.
+            </p>
+          </div>
+          <figure class="hiw-figure-inline">
+            <Diagram data={iacSplit} minScale={DIAGRAM_MIN_SCALE} />
+            <figcaption>A person sets the ceiling; CI works below it.</figcaption>
+          </figure>
+          <ul class="hiw-points">
+            <li>
+              <strong>Three stacks, one state bucket.</strong> All three keep their state in one versioned, encrypted S3
+              bucket, locked with S3's native lock files. That bucket is the one resource made by hand, before anything
+              else.
+            </li>
+            <li>
+              <strong>Site stack.</strong> The bucket, the distribution and its function, the certificate and the
+              Cloudflare records. It holds no IAM.
+            </li>
+            <li>
+              <strong>IAM stack.</strong> The deploy, plan and apply roles, and a Resource Group for the project. CI
+              applies it before the site stack, so new permissions exist before the site needs them.
+            </li>
+            <li>
+              <strong>Bootstrap stack.</strong> The GitHub OIDC provider, a permissions boundary and the role that applies
+              the IAM stack. A person applies it from a laptop with admin single sign-on, and only when the ceiling must
+              move.
+            </li>
+            <li>
+              <strong>The ceiling.</strong> Every role CI manages must carry that boundary, which caps it at the site
+              bucket, the site state, CloudFront, ACM and read-only IAM. CI can't edit the boundary, the OIDC provider or
+              the role it applies IAM with.
+            </li>
+            <li>
+              <strong>Trust.</strong> Each role trusts one GitHub job context, matched on GitHub's immutable OIDC subject,
+              which survives renames. Pull requests get the read-only plan role, and the <code>infra-iam</code>,
+              <code>infra</code> and <code>production</code> environments get the IAM, apply and deploy roles. All three
+              environments take <code>main</code> only. Sessions last an hour, and no AWS keys are stored anywhere.
+            </li>
+            <li>
+              <strong>Cloudflare tokens.</strong> Two API tokens limited to this zone: a read-only one for plans, and one
+              that can edit DNS for applies, held in the <code>infra</code> environment.
+            </li>
+            <li>
+              <strong>Tags.</strong> Resources carry <code>Project=portfolio</code> in AWS and in Cloudflare, so each
+              console lists the project in one place.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="aws" class="hiw-section wrap" aria-labelledby="aws-title">
+        <div class="hiw-panel glass-panel">
+          <div class="hiw-head">
+            <h2 id="aws-title">The AWS account</h2>
+            <p>
+              The account was hardened before the site existed: few ways in, all of them logged, and alerts that land in an
+              inbox.
+            </p>
+          </div>
+          <figure class="hiw-figure-inline">
+            <Diagram data={awsAccount} minScale={DIAGRAM_MIN_SCALE} />
+            <figcaption>Who can act, what watches, and where the alerts go.</figcaption>
+          </figure>
+          <ul class="hiw-points">
+            <li><strong>Root user.</strong> MFA, no access keys, and an alarm if it is ever used.</li>
+            <li>
+              <strong>People.</strong> No IAM users. People sign in through IAM Identity Center, with four-hour sessions.
+            </li>
+            <li><strong>CI.</strong> GitHub Actions uses the OIDC roles above, so no long-lived keys exist.</li>
+            <li>
+              <strong>Audit trail.</strong> An organization CloudTrail trail records sign-ins and management actions in
+              every Region, with log file validation, KMS encryption and a copy in CloudWatch Logs. Alarms on it email on root use, console sign-in
+              without MFA, IAM policy changes and trail changes.
+            </li>
+            <li>
+              <strong>Threats and posture.</strong> GuardDuty emails high-severity findings. Security Hub checks the account
+              against AWS Foundational Security Best Practices and CIS, AWS Config records changes against 18 rules of its
+              own, Inspector covers EC2, container images and Lambda, and IAM Access Analyzer flags external and unused
+              access.
+            </li>
+            <li>
+              <strong>Safe defaults.</strong> S3 Block Public Access is on for the whole account, and EBS volumes are
+              encrypted by default.
+            </li>
+            <li>
+              <strong>Cost.</strong> A $20 monthly budget warns at 85% and 100% of actual spend and on forecast. Cost
+              Anomaly Detection flags unusual spend, and a billing alarm fires above $10.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="cloudflare" class="hiw-section wrap" aria-labelledby="cloudflare-title">
+        <div class="hiw-panel glass-panel">
+          <div class="hiw-head">
+            <h2 id="cloudflare-title">The Cloudflare account</h2>
+            <p>Cloudflare holds the domain, its DNS and the edge in front of the site.</p>
+          </div>
+          <figure class="hiw-figure-inline">
+            <Diagram data={cloudflareZone} minScale={DIAGRAM_MIN_SCALE} />
+            <figcaption>Proxied for the web, DNS-only for the certificate and for mail.</figcaption>
+          </figure>
+          <ul class="hiw-points">
+            <li>
+              <strong>Account.</strong> Sign-in uses two-factor authentication. The domain is registered with Cloudflare
+              Registrar, and the zone runs on the Free plan.
+            </li>
+            <li>
+              <strong>DNS.</strong> Cloudflare's nameservers serve the zone, signed with DNSSEC. Web records are proxied.
+              Certificate validation and mail records are DNS-only, because ACM and mail servers must see the real values.
+            </li>
+            <li>
+              <strong>Edge.</strong> Full (strict) TLS to the origin, TLS 1.3, automatic HTTPS rewrites, HTTP/3 and Brotli.
+              The browser integrity check, email address obfuscation and AI crawler blocking are on.
+            </li>
+            <li>
+              <strong>Mail.</strong> The domain's mail runs on iCloud+, with SPF, DKIM and a DMARC policy of reject, which
+              asks receiving servers to refuse mail that fakes the domain.
+            </li>
+            <li>
+              <strong>Automation.</strong> OpenTofu manages the site's records with the zone-scoped tokens. Tags are set
+              with Cloudflare's own CLI, because the Terraform provider can't manage them yet.
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <section id="services" class="hiw-section wrap" aria-labelledby="services-title">
+        <div class="section-heading">
+          <h2 id="services-title">Every service</h2>
+          <p>From the first edit to your screen.</p>
+        </div>
+        <div class="hiw-services">
+          {
+            services.map((stage) => (
+              <div class="hiw-stage glass-panel">
+                <h3>{stage.title}</h3>
+                <ul>
+                  {stage.items.map((item) => (
+                    <li>
+                      <strong>{item.name}</strong> {item.role}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          }
+        </div>
+      </section>
+    </main>
+    <footer class="site-footer wrap">
+      <span>© {site.fullName}</span>
+      <span>{site.location}</span>
+      <a href="#top">Back to top <span aria-hidden="true">↑</span></a>
+    </footer>
+  </div>
+</Base>
+
+<script>
+  import { initScrollableHosts } from '../scripts/scrollable-hosts';
+  import { initDiagramReveal } from '../scripts/diagram-reveal';
+
+  initScrollableHosts();
+  initDiagramReveal();
+</script>
