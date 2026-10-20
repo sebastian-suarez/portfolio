@@ -1,3 +1,9 @@
+# Every role here carries portfolio-github-boundary (../bootstrap/boundary.tf): the tofu-iam role can
+# only write roles that have it, and it caps what a role can do whatever its policy says. Each role
+# may hold only its one inline policy: aws_iam_role_policies_exclusive shows any other as drift in
+# plans, and the next apply deletes it. That includes AWSRevokeOlderSessions from the console's
+# "Revoke active sessions"; see ../README.md for the order to use after a compromise.
+
 # --- Deploy: publishes the built site (.github/workflows/deploy.yml) ---
 
 resource "aws_iam_role" "deploy" {
@@ -5,6 +11,7 @@ resource "aws_iam_role" "deploy" {
   description          = "Assumed by GitHub Actions (${var.github_owner}/${var.github_repo}) to publish the static site"
   assume_role_policy   = data.aws_iam_policy_document.trust["deploy"].json
   max_session_duration = 3600
+  permissions_boundary = local.boundary_arn
 }
 
 data "aws_iam_policy_document" "deploy" {
@@ -36,13 +43,19 @@ resource "aws_iam_role_policy" "deploy" {
   policy = data.aws_iam_policy_document.deploy.json
 }
 
+resource "aws_iam_role_policies_exclusive" "deploy" {
+  role_name    = aws_iam_role.deploy.name
+  policy_names = [aws_iam_role_policy.deploy.name]
+}
+
 # --- tofu plan: read-only, runs on pull requests (.github/workflows/infra.yml) ---
 
 resource "aws_iam_role" "tofu_plan" {
   name                 = "${var.project}-github-tofu-plan"
-  description          = "Assumed by GitHub Actions on pull requests to run a read-only tofu plan of the site stack"
+  description          = "Assumed by GitHub Actions on pull requests to run read-only tofu plans of the site and IAM stacks"
   assume_role_policy   = data.aws_iam_policy_document.trust["tofu_plan"].json
   max_session_duration = 3600
+  permissions_boundary = local.boundary_arn
 }
 
 data "aws_iam_policy_document" "tofu_plan" {
@@ -76,6 +89,28 @@ data "aws_iam_policy_document" "tofu_plan" {
     actions   = ["cloudfront:Get*", "cloudfront:List*", "cloudfront:Describe*", "acm:Describe*", "acm:Get*", "acm:List*"]
     resources = ["*"]
   }
+
+  # Planning this module: its state, the roles it manages and the Resource Group.
+  statement {
+    sid       = "ReadIamState"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = ["${local.state_bucket_arn}/${local.iam_state_key}"]
+  }
+
+  statement {
+    sid       = "ReadManagedRoles"
+    effect    = "Allow"
+    actions   = ["iam:GetRole", "iam:GetRolePolicy", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies", "iam:ListRoleTags"]
+    resources = [local.managed_roles_arn]
+  }
+
+  statement {
+    sid       = "ReadResourceGroup"
+    effect    = "Allow"
+    actions   = ["resource-groups:GetGroup", "resource-groups:GetGroupQuery", "resource-groups:GetGroupConfiguration", "resource-groups:GetTags"]
+    resources = [local.group_arn]
+  }
 }
 
 resource "aws_iam_role_policy" "tofu_plan" {
@@ -84,14 +119,20 @@ resource "aws_iam_role_policy" "tofu_plan" {
   policy = data.aws_iam_policy_document.tofu_plan.json
 }
 
+resource "aws_iam_role_policies_exclusive" "tofu_plan" {
+  role_name    = aws_iam_role.tofu_plan.name
+  policy_names = [aws_iam_role_policy.tofu_plan.name]
+}
+
 # --- tofu apply: runs on merges to main in the `infra` environment (.github/workflows/infra.yml) ---
-# Deliberately no IAM actions: changes under infra/iam/ are applied from a laptop.
+# No IAM actions: this module is applied by the tofu-iam role (../bootstrap/), in its own environment.
 
 resource "aws_iam_role" "tofu_apply" {
   name                 = "${var.project}-github-tofu-apply"
   description          = "Assumed by GitHub Actions on main (infra environment) to apply the site stack; no IAM rights"
   assume_role_policy   = data.aws_iam_policy_document.trust["tofu_apply"].json
   max_session_duration = 3600
+  permissions_boundary = local.boundary_arn
 }
 
 data "aws_iam_policy_document" "tofu_apply" {
@@ -130,4 +171,9 @@ resource "aws_iam_role_policy" "tofu_apply" {
   name   = "apply-site-stack"
   role   = aws_iam_role.tofu_apply.id
   policy = data.aws_iam_policy_document.tofu_apply.json
+}
+
+resource "aws_iam_role_policies_exclusive" "tofu_apply" {
+  role_name    = aws_iam_role.tofu_apply.name
+  policy_names = [aws_iam_role_policy.tofu_apply.name]
 }

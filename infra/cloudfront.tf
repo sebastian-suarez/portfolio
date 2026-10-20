@@ -18,9 +18,24 @@ resource "aws_cloudfront_origin_access_control" "site" {
 resource "aws_cloudfront_function" "viewer_request" {
   name    = "${var.project}-viewer-request"
   runtime = "cloudfront-js-2.0"
-  comment = "www -> apex redirect + /dir -> /dir/index.html rewrite for Astro output"
+  comment = "Origin lock + www -> apex redirect + /dir -> /dir/index.html rewrite for Astro output"
   publish = true
-  code    = file("${path.module}/functions/viewer-request.js")
+
+  # The code gets only SHA-256 digests of the secrets (origin-lock.tf), so the plan can show it.
+  code = templatefile("${path.module}/functions/viewer-request.js", {
+    verify_header = local.origin_verify_header
+    verify_sha256 = [for g in sort(local.origin_verify_accepted) : nonsensitive(sha256(random_password.origin_verify[g].result))]
+    enforce       = var.origin_lock_enforce
+  })
+}
+
+# The code CloudFront actually runs. The resource above reads its code from the DEVELOPMENT stage,
+# so a failed publish would leave LIVE on old code while plans show no changes; origin-lock.tf
+# checks this against the configured code. (ETags can't be compared: each stage numbers its own.)
+# Read after the function is applied, since it refers to it.
+data "aws_cloudfront_function" "viewer_request_live" {
+  name  = aws_cloudfront_function.viewer_request.name
+  stage = "LIVE"
 }
 
 resource "aws_cloudfront_distribution" "site" {
