@@ -62,3 +62,9 @@ Implementation round 1 (fresh-context review, 20 Oct 2026). The Fable subagent s
 - Pulses stayed paused after reduced motion was switched off. The reveal script tracks which diagrams are on screen and resumes them.
 
 Verified after fixes: `astro check` clean, build green, `check:release` passes, 30 browser checks pass (tabs by mouse, keyboard, Back/Forward and deep link; reveal and pulse states; phone overflow; reduced motion; no JS; GSAP path; `/resume` and `/resume/`), print emulation shows all projects and diagrams. Lighthouse (final local build): 100 / 100 / 100 / 100 on mobile and desktop, CLS 0; `/resume/` accessibility and SEO 100.
+
+## Follow-up: 404 page (20 Oct 2026)
+
+`src/pages/404.astro` builds `dist/404.html`, which CloudFront already serves (status 404) for any missing path, since S3 answers 403 for a missing key and `infra/cloudfront.tf` maps 403 and 404 to it. Before this, `/404.html` did not exist, so missing paths returned S3's 403 XML. The page is `noindex`, uses root-absolute links only (the header takes `base="/"` so its section links become `/#work` and so on), and carries a small diagram of the request path. `.page` now has `overflow: clip`, so the light field no longer adds empty scroll below short pages; the sticky column still works.
+
+Verified: built page at `/nope`, `/404` and a nested path returns 404, styled, with working links; no overflow at 1440 / 900 / 700 / 390 / 360 px (a grid column needed `minmax(0, 1fr)` on phones); focus ring on every tab stop; print shows the finished page; the 30 home-page checks still pass. Reviews: Codex adversarial review approved with no findings. Fable was still out of credits, so the fresh-context review ran on Codex (GPT-6 Astra) at `xhigh` and found nothing. It could not launch a browser in its sandbox, so the layout, keyboard and print checks above were run separately.
