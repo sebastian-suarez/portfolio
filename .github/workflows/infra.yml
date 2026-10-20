@@ -1,7 +1,10 @@
 name: Infra
 
-# OpenTofu for the site stack (infra/): plan on every pull request, apply on merge to main.
-# infra/iam/ (all IAM, including the roles used here) is applied from a laptop; CI only checks it.
+# OpenTofu: plan on every pull request, apply on merge to main.
+# - infra/iam/ (the roles CI uses) is applied first, by the tofu-iam role, so new permissions exist
+#   before the site needs them. That role can only manage roles under a fixed permissions boundary.
+# - infra/ (the site stack) is applied next, by the tofu-apply role.
+# - infra/bootstrap/ (OIDC provider, boundary, tofu-iam role) is applied from a laptop; CI only validates it.
 
 on:
   pull_request:
@@ -14,6 +17,15 @@ on:
 
 permissions:
   contents: read
+
+# Pull requests: one plan per PR; a newer push cancels the older plan.
+# main: one run at a time and never cancelled mid-run, so a run's IAM and site applies both finish
+# before the next run starts. A newer queued run replaces an older queued one; it applies the newer tip.
+# The main group keeps the name the apply job used before, so a re-run of an older run (which keeps
+# its old workflow file) still queues behind new runs. Other refs get their own group.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('infra-plan-{0}', github.event.pull_request.number) || github.ref == 'refs/heads/main' && 'infra-apply' || format('infra-other-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
   TOFU_VERSION: "1.13.1"
@@ -28,9 +40,6 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    concurrency:
-      group: infra-plan-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
     permissions:
       contents: read
       id-token: write
@@ -75,7 +84,14 @@ jobs:
         if: steps.changes.outputs.check == 'true'
         run: tofu fmt -check -recursive -diff
 
-      - name: Validate infra/iam (applied from a laptop, not planned here)
+      - name: Validate infra/bootstrap (applied from a laptop, not planned here)
+        if: steps.changes.outputs.check == 'true'
+        working-directory: infra/bootstrap
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      - name: Validate infra/iam
         if: steps.changes.outputs.check == 'true'
         working-directory: infra/iam
         run: |
@@ -103,16 +119,26 @@ jobs:
           role-to-assume: ${{ vars.AWS_TOFU_PLAN_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Init with the state backend
+      # Read-only role: it cannot write lock files, and a plan never writes state.
+      - name: Plan infra/iam
         if: steps.changes.outputs.plan == 'true'
-        run: tofu init -reconfigure -backend-config=backend.hcl
+        working-directory: infra/iam
+        run: |
+          tofu init -reconfigure -backend-config=../backend.hcl
+          tofu plan -lock=false -out=tfplan
+          {
+            echo '### OpenTofu plan for infra/iam'
+            echo '```'
+            tofu show -no-color tfplan | tail -c 60000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Plan
+      - name: Plan infra
         if: steps.changes.outputs.plan == 'true'
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PLAN }}
         run: |
-          # Read-only role: it cannot write the lock file, and a plan never writes state.
+          tofu init -reconfigure -backend-config=backend.hcl
           tofu plan -lock=false -out=tfplan
           {
             echo '### OpenTofu plan for infra/'
@@ -121,21 +147,20 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
-  apply:
-    name: Terraform apply
+  apply-iam:
+    name: Terraform apply (IAM)
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 45 # a new ACM validation or CloudFront update can take a while
-    environment: infra # deployments limited to main; holds the Cloudflare apply token
-    concurrency:
-      group: infra-apply
-      cancel-in-progress: false
+    timeout-minutes: 15
+    environment: infra-iam # deployments limited to main, no admin bypass; holds no secrets
     permissions:
       contents: read
       id-token: write
+    outputs:
+      sha: ${{ steps.revision.outputs.sha }}
     defaults:
       run:
-        working-directory: infra
+        working-directory: infra/iam
     steps:
       # Always apply the current tip of main, not the commit that triggered the run: a re-run of
       # an older run (re-runs keep their original SHA) must not roll infrastructure back.
@@ -145,7 +170,13 @@ jobs:
           fetch-depth: 0 # full history so the push range below can be diffed
           persist-credentials: false
 
-      - name: Warn when infra/iam changed
+      # The site job applies only this revision's infra/ code.
+      - name: Record the revision
+        id: revision
+        working-directory: .
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Warn when infra/bootstrap changed
         if: github.event_name == 'push'
         working-directory: .
         env:
@@ -155,8 +186,68 @@ jobs:
           if [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
             exit 0
           fi
-          if git diff --name-only "$BEFORE" HEAD -- infra/iam | grep -q .; then
-            echo "::warning title=infra/iam changed::CI does not apply infra/iam. Run 'tofu apply' in infra/iam from a laptop with admin credentials."
+          if git diff --name-only "$BEFORE" HEAD -- infra/bootstrap | grep -q .; then
+            echo "::warning title=infra/bootstrap changed::CI does not apply infra/bootstrap. Run 'tofu apply' in infra/bootstrap from a laptop with admin credentials."
+          fi
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Assume the IAM apply role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_TOFU_IAM_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Init
+        run: tofu init -backend-config=../backend.hcl
+
+      - name: Plan
+        run: |
+          tofu plan -out=tfplan
+          {
+            echo '### OpenTofu plan applied to infra/iam'
+            echo '```'
+            tofu show -no-color tfplan | tail -c 60000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply
+        run: tofu apply tfplan
+
+  apply:
+    name: Terraform apply
+    needs: apply-iam # permissions first
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45 # a new ACM validation or CloudFront update can take a while
+    environment: infra # deployments limited to main; holds the Cloudflare apply token
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0 # history to compare with the revision the IAM job applied
+          persist-credentials: false
+
+      # Apply the site only if its code is what the IAM job just applied. infra/ differs when a merge
+      # landed during this run (that merge's own run applies both stacks next) or when only this job
+      # is re-run later; applying it then could use permissions that don't exist yet, or roll back.
+      - name: Check that IAM was applied for this revision
+        working-directory: .
+        env:
+          IAM_SHA: ${{ needs.apply-iam.outputs.sha }}
+        run: |
+          if ! git diff --quiet "$IAM_SHA" HEAD -- infra; then
+            echo "::error title=infra/ changed after the IAM apply::main has newer infra/ code than the IAM job applied ($IAM_SHA). The run for the newer commit applies both stacks; to retry this run, use Re-run all jobs."
+            exit 1
           fi
 
       - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
