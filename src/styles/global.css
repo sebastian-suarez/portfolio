@@ -1,0 +1,470 @@
+@import "tailwindcss";
+
+/* Workshop lane tokens. The accent is the only tweakable color. */
+@theme {
+  --color-ground: #141414;
+  --color-panel: #191919;
+  --color-surface: #1d1d1d;
+  --color-surface-2: #262626;
+  --color-ink: #f4f1ed;
+  --color-muted: #afaaa3;
+  --color-accent: #e6b374;
+  --color-accent-deep: #cb914e;
+  --color-on-accent: #120f0b;
+  --color-line: #262626;
+  --color-line-2: #2e2e2e;
+  --color-line-3: #353535;
+  --color-line-4: #454545;
+  --color-line-5: #4a4a4a;
+  --color-tint: #2a2418;
+  --color-tint-line: #3d3324;
+  --color-tint-line-2: #4a3d2a;
+  --color-tint-ink: #c9c2b8;
+
+  --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+/* Font variables come from the Astro Fonts API (<Font> in Base.astro). */
+@theme inline {
+  --font-sans: var(--font-barlow);
+  --font-display: var(--font-barlow-condensed);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+@layer base {
+  html {
+    background: var(--color-ground);
+    color: var(--color-ink);
+    overflow-x: clip;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    font-size: 17px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: clip;
+  }
+  a {
+    color: var(--color-accent);
+  }
+  a:hover {
+    color: var(--color-accent-deep);
+  }
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+  p {
+    text-wrap: pretty;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+}
+
+@layer components {
+  /* The contact block is accent-coloured, so the accent focus ring would vanish there. */
+  #contact :focus-visible {
+    outline-color: var(--color-on-accent);
+  }
+
+  .wrap {
+    width: 100%;
+    max-width: 1320px;
+    margin-inline: auto;
+    padding-inline: 60px;
+    box-sizing: border-box;
+  }
+
+  .navlink {
+    color: var(--color-muted);
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 150ms ease;
+  }
+  .navlink:hover,
+  .navlink:focus-visible {
+    color: var(--color-ink);
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 48px;
+    padding: 0 22px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 16px;
+    text-decoration: none;
+    white-space: nowrap;
+    box-sizing: border-box;
+    transition:
+      filter 150ms ease,
+      border-color 150ms ease,
+      color 150ms ease,
+      transform 120ms var(--ease-out-quint);
+  }
+  .btn:active {
+    transform: scale(0.98);
+  }
+  .btn-primary {
+    background: var(--color-accent);
+    color: var(--color-on-accent);
+  }
+  .btn-primary:hover {
+    color: var(--color-on-accent);
+    filter: brightness(0.92);
+  }
+  .btn-ghost {
+    border: 1px solid var(--color-line-5);
+    color: var(--color-ink);
+  }
+  .btn-ghost:hover {
+    color: var(--color-ink);
+    border-color: var(--color-muted);
+  }
+  .btn-dark {
+    background: var(--color-on-accent);
+    color: var(--color-accent);
+  }
+  .btn-dark:hover {
+    color: var(--color-accent);
+    filter: brightness(1.25);
+  }
+
+  .darklink {
+    color: var(--color-on-accent);
+    text-decoration: underline;
+    text-underline-offset: 4px;
+    transition: opacity 150ms ease;
+  }
+  .darklink:hover {
+    color: var(--color-on-accent);
+    opacity: 0.72;
+  }
+
+  .replink {
+    color: var(--color-accent);
+    text-decoration: none;
+    font-weight: 500;
+    border-bottom: 1px solid transparent;
+    transition: border-color 150ms ease;
+  }
+  .replink:hover {
+    color: var(--color-accent);
+    border-bottom-color: var(--color-accent);
+  }
+
+  .chip {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    padding: 6px 10px;
+    border: 1px solid var(--color-line-3);
+    border-radius: 8px;
+    color: var(--color-muted);
+  }
+  .chip-sm {
+    font-size: 12px;
+    padding: 4px 8px;
+  }
+
+  .card {
+    transition: border-color 200ms ease;
+  }
+  .plate {
+    transition:
+      border-color 200ms ease,
+      color 200ms ease;
+  }
+
+  /* Work section: pinned intro column beside the card stack. */
+  .work-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 64px;
+    align-items: start;
+  }
+
+  /* Horizontal accordion. Hover is gated to real pointers; keyboard uses focus-within. */
+  .pane {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 1px solid var(--color-line-2);
+    transition:
+      flex-grow 500ms var(--ease-out-quint),
+      background-color 200ms ease;
+  }
+  .pane-default {
+    background: var(--color-surface);
+  }
+  .pane-alt {
+    background: var(--color-panel);
+  }
+  .pane-accent {
+    background: var(--color-tint);
+    border-color: var(--color-tint-line);
+  }
+  .pane-title {
+    color: var(--color-ink);
+  }
+  .pane-accent .pane-title {
+    color: var(--color-accent);
+  }
+  .pane-text {
+    color: var(--color-muted);
+  }
+  .pane-accent .pane-text {
+    color: var(--color-tint-ink);
+  }
+  .pane-accent .chip {
+    border-color: var(--color-tint-line-2);
+    color: var(--color-tint-ink);
+  }
+  .pane .more {
+    opacity: 0;
+    transition: opacity 250ms ease;
+  }
+  .pane-btn {
+    all: unset;
+    cursor: pointer;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    text-align: left;
+  }
+  .pane-btn:focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 3px;
+  }
+  .pane:focus-within,
+  .pane[data-state='open'] {
+    flex-grow: 2.6;
+  }
+  .pane:focus-within .more,
+  .pane[data-state='open'] .more {
+    opacity: 1;
+    transition-delay: 150ms;
+  }
+
+  /* No hover, and a tap does not focus a button in Safari: chips stay visible unless closed. */
+  @media (hover: none) {
+    .pane:not([data-state='closed']) .more {
+      opacity: 1;
+    }
+    .pane[data-state='closed'] .more {
+      opacity: 0;
+    }
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .card:hover {
+      border-color: var(--color-line-5);
+    }
+    .plate:hover {
+      border-color: #5a5a5a;
+      color: var(--color-ink);
+    }
+    .pane:hover {
+      flex-grow: 2.6;
+    }
+    .pane:hover .more {
+      opacity: 1;
+      transition-delay: 150ms;
+    }
+  }
+
+  @media (min-width: 900px) {
+    .pin {
+      position: sticky;
+      top: 120px;
+    }
+  }
+
+  @media (max-width: 899px) {
+    .wrap {
+      padding-inline: 20px;
+    }
+    .work-grid {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 40px;
+    }
+    .acc {
+      flex-direction: column;
+    }
+    .pane:not([data-state='closed']) .more {
+      opacity: 1;
+    }
+    .pane[data-state='closed'] .more {
+      opacity: 0;
+    }
+    .pane:hover,
+    .pane:focus-within,
+    .pane[data-state='open'] {
+      flex-grow: 1;
+    }
+  }
+
+  /* Diagram: one SVG per diagram, viewBox in comp coordinates, scales with its host. */
+  .dg-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 0;
+  }
+  .dg-host {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 8px;
+  }
+  .dg-hint {
+    display: none;
+    margin: 0;
+    font-size: 13px;
+    color: var(--color-muted);
+  }
+  .dg-host[data-scrollable] + .dg-hint {
+    display: block;
+  }
+  .dg {
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: var(--font-sans);
+  }
+  .dg-region {
+    vector-effect: non-scaling-stroke;
+  }
+  .dg-box {
+    fill: var(--dg-node-fill, var(--color-surface-2));
+    stroke: var(--color-line-4);
+    stroke-width: 1;
+    vector-effect: non-scaling-stroke;
+  }
+  .dg-node-accent .dg-box {
+    stroke: var(--color-accent);
+  }
+  .dg-node-accent-fill .dg-box {
+    fill: var(--color-accent);
+    stroke: none;
+  }
+  .dg-text {
+    fill: var(--color-ink);
+  }
+  .dg-node-accent-fill .dg-text {
+    fill: var(--color-on-accent);
+  }
+  .dg-edge {
+    fill: none;
+    stroke: var(--color-muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .dg-edge-accent {
+    stroke: var(--color-accent);
+  }
+  .dg-head-muted {
+    fill: var(--color-muted);
+  }
+  .dg-head-accent {
+    fill: var(--color-accent);
+  }
+  .dg-label {
+    fill: var(--color-muted);
+  }
+  .dg-label-accent {
+    fill: var(--color-accent);
+  }
+}
+
+/* Motion. Same values as the comp; GSAP only steps in where view() timelines are unsupported. */
+@media (prefers-reduced-motion: no-preference) {
+  .enter {
+    transition:
+      opacity 600ms var(--ease-out-quint),
+      transform 600ms var(--ease-out-quint);
+  }
+  .enter.d1 {
+    transition-delay: 60ms;
+  }
+  .enter.d2 {
+    transition-delay: 120ms;
+  }
+  .enter.d3 {
+    transition-delay: 180ms;
+  }
+  .enter.d4 {
+    transition-delay: 260ms;
+  }
+  @starting-style {
+    .enter {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter {
+    transition: opacity 200ms ease;
+  }
+  @starting-style {
+    .enter {
+      opacity: 0;
+    }
+  }
+  .pane,
+  .btn,
+  .card,
+  .plate {
+    transition: none;
+  }
+}
+
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .rise {
+      animation: rise linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 70%;
+    }
+    @keyframes rise {
+      from {
+        opacity: 0.25;
+        transform: scale(0.94) translateY(24px);
+      }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+    .scrub {
+      view-timeline-name: --manifesto;
+    }
+    .word {
+      animation: wake linear both;
+      animation-timeline: --manifesto;
+      animation-range-start: cover calc(8% + var(--i) * 0.5%);
+      animation-range-end: cover calc(22% + var(--i) * 0.5%);
+    }
+    @keyframes wake {
+      from {
+        opacity: 0.18;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+  }
+}
