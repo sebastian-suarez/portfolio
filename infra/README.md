@@ -67,7 +67,8 @@ Everything that belongs to the site is tagged `Project=portfolio`.
 
 - **AWS:** the Resource Group `portfolio` (us-east-1, defined in `infra/iam/`) lists both buckets, the distribution, the ACM certificate and the GitHub OIDC provider. AWS can't put IAM roles, origin access controls or CloudFront Functions in a group, so the three roles, the OAC and the viewer-request function only show up in the OpenTofu state. Once `Project` is activated as a cost-allocation tag (Billing → Cost allocation tags), Cost Explorer can split spend by project.
 - **State bucket:** it is created by hand (see "Fresh account" below), so its tags are too: `Project`, `Repo` and `ManagedBy=manual`.
-- **Cloudflare:** Resource Tagging (public beta; Manage Account → Resource Tagging) tags the zone and the four records in `dns.tf` with `Project=portfolio`. The Cloudflare provider can't manage these tags yet ([cloudflare/terraform-provider-cloudflare#7149](https://github.com/cloudflare/terraform-provider-cloudflare/issues/7149)), so they are set with the `cf` CLI, signed in with `cf auth login`: its OAuth login can write tags, the DNS tokens can't, and an exported `CLOUDFLARE_API_TOKEN` would replace that login. They are stored apart from the records, so OpenTofu never sees them, and a record it recreates comes back untagged. To re-tag one, read its tags by ID, merge `Project` into them (a write replaces all of a resource's tags), and write with the ETag the read returned, so a concurrent change makes the write fail instead of being overwritten. If it fails on the ETag, read and merge again.
+- **Function log group:** CloudFront creates `/aws/cloudfront/function/portfolio-viewer-request` (us-east-1) on the first report-mode log line, outside OpenTofu, so its tags (`Project`, `Repo`, `ManagedBy=manual`) and its retention are set by hand.
+- **Cloudflare:** Resource Tagging (public beta; Manage Account → Resource Tagging) tags the zone, the four records in `dns.tf` and the request header ruleset in `origin-lock.tf` (type `zone_ruleset`) with `Project=portfolio`. The Cloudflare provider can't manage these tags yet ([cloudflare/terraform-provider-cloudflare#7149](https://github.com/cloudflare/terraform-provider-cloudflare/issues/7149)), so they are set with the `cf` CLI, signed in with `cf auth login`: its OAuth login can write tags, the DNS tokens can't, and an exported `CLOUDFLARE_API_TOKEN` would replace that login. They are stored apart from the resources, so OpenTofu never sees them, and a record or ruleset it recreates comes back untagged. To re-tag one, read its tags by ID, merge `Project` into them (a write replaces all of a resource's tags), and write with the ETag the read returned, so a concurrent change makes the write fail instead of being overwritten. If it fails on the ETag, read and merge again.
 
 ```bash
 env -u CLOUDFLARE_API_TOKEN cf tags resources list --tag Project=portfolio   # what is tagged now
@@ -103,7 +104,7 @@ Everything below runs from a laptop with admin credentials; CI cannot bootstrap 
 2. Restrict the `production` and `infra` GitHub environments to `main` before any role trusts them.
 3. Set `cloudfront_distribution_id` in `iam/terraform.tfvars`, then apply `infra/iam/`.
 4. Create the Cloudflare tokens and set the GitHub variables and secrets in the table below.
-5. Tag the Cloudflare zone and records (see "Project grouping"). Once Billing lists the `Project` tag key (up to a day after the first tagged usage), activate it as a cost-allocation tag.
+5. Tag the Cloudflare zone, records and request header ruleset (see "Project grouping"). Once Billing lists the `Project` tag key (up to a day after the first tagged usage), activate it as a cost-allocation tag.
 
 ## GitHub configuration
 
