@@ -16,8 +16,3 @@ output "cloudfront_domain_name" {
   description = "What the Cloudflare CNAMEs point at"
   value       = aws_cloudfront_distribution.site.domain_name
 }
-
-output "deploy_role_arn" {
-  description = "GitHub Actions variable AWS_DEPLOY_ROLE_ARN"
-  value       = aws_iam_role.deploy.arn
-}

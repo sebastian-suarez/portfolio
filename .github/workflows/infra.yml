@@ -1,0 +1,191 @@
+name: Infra
+
+# OpenTofu for the site stack (infra/): plan on every pull request, apply on merge to main.
+# infra/iam/ (all IAM, including the roles used here) is applied from a laptop; CI only checks it.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  TOFU_VERSION: "1.13.1"
+  TF_IN_AUTOMATION: "1"
+  TF_INPUT: "0"
+
+jobs:
+  plan:
+    # Required status check. Runs on every PR so it always reports; without infra changes it
+    # passes in seconds and never requests cloud credentials.
+    name: Terraform plan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: infra-plan-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2 # the PR merge commit and its base parent
+          persist-credentials: false
+
+      # code:  OpenTofu files changed (needs a plan).
+      # check: code or this workflow changed (format and validate, no credentials needed).
+      # trusted: a branch of this repo opened by a person. Fork and Dependabot runs get no
+      #   Actions secrets and no OIDC token, so they cannot plan.
+      - name: Detect infra changes
+        id: changes
+        working-directory: .
+        env:
+          TRUSTED: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
+        run: |
+          code=false; check=false
+          if git diff --name-only HEAD^1 HEAD -- infra | grep -q .; then code=true; check=true; fi
+          if git diff --name-only HEAD^1 HEAD -- .github/workflows/infra.yml | grep -q .; then check=true; fi
+          plan=false
+          if [ "$check" = true ] && [ "$TRUSTED" = true ]; then plan=true; fi
+          { echo "code=$code"; echo "check=$check"; echo "plan=$plan"; } >> "$GITHUB_OUTPUT"
+          if [ "$check" = false ]; then
+            echo "No infra changes in this pull request; nothing to plan." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$plan" = false ]; then
+            echo "Untrusted run (fork or Dependabot): format and validate only, no plan." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        if: steps.changes.outputs.check == 'true'
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Format check
+        if: steps.changes.outputs.check == 'true'
+        run: tofu fmt -check -recursive -diff
+
+      - name: Validate infra/iam (applied from a laptop, not planned here)
+        if: steps.changes.outputs.check == 'true'
+        working-directory: infra/iam
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      - name: Validate infra
+        if: steps.changes.outputs.check == 'true'
+        run: |
+          tofu init -backend=false
+          tofu validate
+
+      # An untrusted run may bump actions in this workflow, but must not change OpenTofu code
+      # without a plan. Push the branch to this repository to get one.
+      - name: Refuse unplanned infra changes
+        if: steps.changes.outputs.code == 'true' && steps.changes.outputs.plan == 'false'
+        run: |
+          echo "::error::This PR changes infra/ but runs without cloud credentials (fork or Dependabot), so it cannot be planned. Push the branch to this repository to get a plan."
+          exit 1
+
+      - name: Assume the read-only plan role
+        if: steps.changes.outputs.plan == 'true'
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_TOFU_PLAN_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Init with the state backend
+        if: steps.changes.outputs.plan == 'true'
+        run: tofu init -reconfigure -backend-config=backend.hcl
+
+      - name: Plan
+        if: steps.changes.outputs.plan == 'true'
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN_PLAN }}
+        run: |
+          # Read-only role: it cannot write the lock file, and a plan never writes state.
+          tofu plan -lock=false -out=tfplan
+          {
+            echo '### OpenTofu plan for infra/'
+            echo '```'
+            tofu show -no-color tfplan | tail -c 60000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: Terraform apply
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45 # a new ACM validation or CloudFront update can take a while
+    environment: infra # deployments limited to main; holds the Cloudflare apply token
+    concurrency:
+      group: infra-apply
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      # Always apply the current tip of main, not the commit that triggered the run: a re-run of
+      # an older run (re-runs keep their original SHA) must not roll infrastructure back.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0 # full history so the push range below can be diffed
+          persist-credentials: false
+
+      - name: Warn when infra/iam changed
+        if: github.event_name == 'push'
+        working-directory: .
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          # All zeros when the branch is created; nothing to compare against.
+          if [[ "$BEFORE" =~ ^0+$ ]] || ! git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            exit 0
+          fi
+          if git diff --name-only "$BEFORE" HEAD -- infra/iam | grep -q .; then
+            echo "::warning title=infra/iam changed::CI does not apply infra/iam. Run 'tofu apply' in infra/iam from a laptop with admin credentials."
+          fi
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: ${{ env.TOFU_VERSION }}
+          tofu_wrapper: false
+
+      - name: Assume the apply role
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_TOFU_APPLY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Init
+        run: tofu init -backend-config=backend.hcl
+
+      - name: Plan
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          tofu plan -out=tfplan
+          {
+            echo '### OpenTofu plan applied to infra/'
+            echo '```'
+            tofu show -no-color tfplan | tail -c 60000
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Apply
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: tofu apply tfplan

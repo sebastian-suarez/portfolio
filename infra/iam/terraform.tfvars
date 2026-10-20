@@ -1,0 +1,7 @@
+domain                     = "sebastiansuarez.dev"
+cloudfront_distribution_id = "E37O7NIBWC8IQB"
+state_bucket               = "tfstate-042420645565-us-east-1"
+github_owner               = "sebastian-suarez"
+github_owner_id            = "261091557"
+github_repo                = "portfolio"
+github_repo_id             = "1427344899"
