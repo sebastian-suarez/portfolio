@@ -7,7 +7,7 @@ Two OpenTofu root modules share one state bucket (`backend.hcl`, S3-native locki
 | Module | What | Applied by |
 | --- | --- | --- |
 | `infra/` | S3, CloudFront, ACM, Cloudflare DNS. No IAM. | GitHub Actions (`.github/workflows/infra.yml`) |
-| `infra/iam/` | GitHub OIDC provider and the three roles below | A laptop with admin credentials |
+| `infra/iam/` | GitHub OIDC provider, the three roles below, and the `portfolio` Resource Group | A laptop with admin credentials |
 
 Keeping IAM out of the CI-applied module means no workflow can widen its own access. The IAM module takes the bucket and distribution identities from its own `terraform.tfvars` rather than from the site stack's state, because CI can write that state.
 
@@ -29,10 +29,26 @@ The trust uses GitHub's immutable subject, `repo:OWNER@OWNER_ID/REPO@REPO_ID:<co
 
 `main` is protected by a ruleset: changes go through a PR, and the `Build` and `Terraform plan` checks must pass.
 
+## Project grouping
+
+Everything that belongs to the site is tagged `Project=portfolio`.
+
+- **AWS:** the Resource Group `portfolio` (us-east-1, defined in `infra/iam/`) lists both buckets, the distribution, the ACM certificate and the GitHub OIDC provider. AWS can't put IAM roles, origin access controls or CloudFront Functions in a group, so the three roles, the OAC and the viewer-request function only show up in the OpenTofu state. Once `Project` is activated as a cost-allocation tag (Billing → Cost allocation tags), Cost Explorer can split spend by project.
+- **State bucket:** it is created by hand (see "Fresh account" below), so its tags are too: `Project`, `Repo` and `ManagedBy=manual`.
+- **Cloudflare:** Resource Tagging (public beta; Manage Account → Resource Tagging) tags the zone and the four records in `dns.tf` with `Project=portfolio`. The Cloudflare provider can't manage these tags yet ([cloudflare/terraform-provider-cloudflare#7149](https://github.com/cloudflare/terraform-provider-cloudflare/issues/7149)), so they are set with the `cf` CLI, signed in with `cf auth login`: its OAuth login can write tags, the DNS tokens can't, and an exported `CLOUDFLARE_API_TOKEN` would replace that login. They are stored apart from the records, so OpenTofu never sees them, and a record it recreates comes back untagged. To re-tag one, read its tags by ID, merge `Project` into them (a write replaces all of a resource's tags), and write with the ETag the read returned, so a concurrent change makes the write fail instead of being overwritten. If it fails on the ETag, read and merge again.
+
+```bash
+env -u CLOUDFLARE_API_TOKEN cf tags resources list --tag Project=portfolio   # what is tagged now
+env -u CLOUDFLARE_API_TOKEN cf tags resources list --id <record-id>          # its tags and etag; [] = no tags yet
+env -u CLOUDFLARE_API_TOKEN cf tags account-resources update --zone <zone-id> --if-match <etag> \
+  --body '{"resource_type":"dns_record","resource_id":"<record-id>","tags":{"Project":"portfolio","<other-key>":"<other-value>"}}'
+# Keep every tag the read returned. With no tags yet, drop --if-match and the other keys.
+```
+
 ## Laptop commands
 
 ```bash
-export CLOUDFLARE_API_TOKEN=...                 # Zone.DNS:Edit + Zone.Zone:Read on this zone (site stack only)
+export CLOUDFLARE_API_TOKEN=...                 # this zone only: Zone Read + DNS Read to plan, DNS Edit as well to apply
 
 cd infra
 tofu init -backend-config=backend.hcl            # once per clone
@@ -50,11 +66,12 @@ If the distribution is ever replaced, put its new ID in `iam/terraform.tfvars`, 
 
 Everything below runs from a laptop with admin credentials; CI cannot bootstrap itself.
 
-0. Create the state bucket (versioning on, SSE-S3, public access blocked), e.g. `tfstate-<account-id>-us-east-1`, and put its name in `backend.hcl` (`bucket = "..."`).
+0. Create the state bucket (versioning on, SSE-S3, public access blocked), e.g. `tfstate-<account-id>-us-east-1`, tag it `Project=portfolio`, `Repo=<owner>/<repo>` and `ManagedBy=manual`, and put its name in `backend.hcl` (`bucket = "..."`).
 1. Apply `infra/` (site stack).
 2. Restrict the `production` and `infra` GitHub environments to `main` before any role trusts them.
 3. Set `cloudfront_distribution_id` in `iam/terraform.tfvars`, then apply `infra/iam/`.
 4. Create the Cloudflare tokens and set the GitHub variables and secrets in the table below.
+5. Tag the Cloudflare zone and records (see "Project grouping"). Once Billing lists the `Project` tag key (up to a day after the first tagged usage), activate it as a cost-allocation tag.
 
 ## GitHub configuration
 
