@@ -4,9 +4,6 @@ updates:
     directory: /
     schedule:
       interval: weekly
-    ignore:
-        - dependency-name: "*"
-          update-types: ["version-update:semver-major"]
     groups:
       actions:
         patterns: ["*"]
@@ -15,6 +12,10 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # Majors need a hand migration (e.g. TypeScript 7 breaks @astrojs/check's peer range).
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
     groups:
       npm-minor-and-patch:
         update-types: ["minor", "patch"]
