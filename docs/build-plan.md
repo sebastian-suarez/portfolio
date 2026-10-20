@@ -1,5 +1,7 @@
 # Build plan: portfolio (Astro, static)
 
+> Superseded on 20 Oct 2026 by the blue glass redesign: see `glass-redesign-plan.md`. Kept for the v1 decisions and review log.
+
 Source of truth: the Design canvas comp (`Main.dc.html`, 1440 wide) plus the handoff notes.
 
 ## Stack
