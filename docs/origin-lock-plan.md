@@ -49,6 +49,7 @@ Goal: the site is reachable only through Cloudflare, so Cloudflare analytics, WA
    - The function's LIVE code equals its DEVELOPMENT code.
    - Send requests through Cloudflare and straight to `cloudfront.net`. After the logs arrive (best effort, can lag minutes): no log lines with `cf-ray` present, and lines for the direct requests.
    - A new PR plan shows no changes, which proves the plan token can read the ruleset.
+   - Tag the new ruleset `Project=portfolio` (Resource Tagging, type `zone_ruleset`). Once CloudFront creates the report-mode log group, tag it (`Project`, `Repo`, `ManagedBy=manual`) and set a 14-day retention. Check both tags on the live resources.
 7. PR 2 sets `origin_lock_enforce = true`. Owner merges. Verify: `cloudfront.net` 403; CloudFront IP with the real Host 403; a wrong header 403; everything in step 6 still passes through Cloudflare.
 
 ## Rollback and recovery
@@ -67,7 +68,8 @@ If step 1's publish failed, the guard fails step 2's plan, so Cloudflare never s
 - The secret is stored in the OpenTofu state and in the Cloudflare rule: admins, the plan and apply roles and both CI tokens can read it, and saved plan files hold it (CI's `tfplan` is never uploaded). A PR from a branch of this repo could print it in its plan; only the owner can push branches.
 - When only the Cloudflare rule changes, the LIVE-code guard reads LIVE at plan time; CI applies seconds later in the same job.
 - Plans no longer show the Cloudflare rule's expression; review it in the PR diff.
-- The report-mode log group is created by CloudFront with no retention. Few lines are written, and enforce mode writes none; set a retention or delete it by hand afterwards.
+- The report-mode log group is created by CloudFront, outside OpenTofu, so its tags and retention are set by hand (managing it in OpenTofu would need IAM changes for the CI roles). Enforce mode writes no lines.
+- The ruleset's `Project` tag lives outside OpenTofu, like the DNS records' tags: if OpenTofu ever recreates the ruleset, re-tag it.
 - Request header rules for this zone are managed only in OpenTofu from now on.
 
 ## Review log (round 1: adversarial review of this plan)
