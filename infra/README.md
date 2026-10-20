@@ -33,7 +33,7 @@ The trust uses GitHub's immutable subject, `repo:OWNER@OWNER_ID/REPO@REPO_ID:<co
 
 CloudFront only serves requests that came through Cloudflare, so Cloudflare's analytics, WAF and DDoS protection always apply. A Request Header Transform Rule (`origin-lock.tf`) adds `x-origin-verify: <secret>` to the HTTPS requests Cloudflare sends to CloudFront for `@` and `www`. The viewer-request function answers 403 when the header is missing or wrong. That blocks the `*.cloudfront.net` name and requests sent straight to a CloudFront IP with the real Host.
 
-- The secret (`random_password.origin_verify`) is kept only in the state. The function holds SHA-256 digests of it, so its code still shows in plans. The Cloudflare rules show as `(sensitive value)`, so review them in the PR diff.
+- The secret (`random_password.origin_verify`) is stored in the state and in the Cloudflare rule, so admins, the two CI roles (state) and the two CI tokens (Transform Rules Read) can read it; saved plan files hold it too (CI never uploads its `tfplan`). The function holds SHA-256 digests of it, so its code still shows in plans. The Cloudflare rules show as `(sensitive value)`, so review them in the PR diff.
 - Only HTTPS requests get the header (`ssl` in the rule), because Full (strict) uses the visitor's scheme toward the origin. Plain HTTP reaches CloudFront without it and gets CloudFront's redirect to HTTPS, which runs before the function.
 - OpenTofu owns the zone's `http_request_late_transform` phase: a Request Header Transform Rule added in the dashboard is removed by the next apply. Add new ones in `origin-lock.tf`.
 - Report mode: `origin_lock_enforce = false` serves every request and logs the failed checks (host, and whether `cf-ray` was present) to CloudWatch Logs in us-east-1, log group `/aws/cloudfront/function/portfolio-viewer-request`. Use it for a first rollout and before removing the lock.
@@ -46,13 +46,13 @@ curl -sI https://sebastiansuarez.dev/ | head -1                                 
 
 **Rotation**, with no downtime and no gap in the lock: three PRs, each applied before the next.
 
-1. Add a generation to `origin_verify_accepted`, e.g. `["1", "2"]`. CloudFront accepts both; Cloudflare still sends the old one. Wait a few minutes for the function to reach every edge.
-2. Set `origin_verify_sent = "2"`.
+1. Add a generation to `origin_verify_accepted`, e.g. `["1", "2"]`. CloudFront accepts both; Cloudflare still sends the old one. After the apply, wait until the distribution is `Deployed` again: edges only pick up a published function once its distribution finishes deploying (`aws cloudfront get-distribution --id <distribution-id> --query Distribution.Status`).
+2. Set `origin_verify_sent = "2"`. After the apply, wait a few minutes before step 3.
 3. Remove the old generation.
 
 The rule `depends_on` the function, so an apply publishes the function before it changes what Cloudflare sends, and the precondition below stops the change if that publish didn't take.
 
-**Recovery:** the AWS provider reads the function code from its DEVELOPMENT stage, so a publish that failed would go unnoticed. A precondition on the Cloudflare rule compares the code CloudFront runs (the LIVE stage) with the configured code, and fails every plan until they match. Publish it from a laptop with admin credentials, then re-run the plan:
+**Recovery:** the AWS provider reads the function code from its DEVELOPMENT stage, so a publish that failed would go unnoticed. A precondition on the Cloudflare rule compares the code CloudFront runs (the LIVE stage) with the configured code, and fails every plan until they match. It reads LIVE when planning, and again during the apply only when the function changes too; CI plans and applies seconds apart. Publish it from a laptop with admin credentials, then re-run the plan:
 
 ```bash
 ETAG=$(aws cloudfront describe-function --name portfolio-viewer-request --stage DEVELOPMENT --query ETag --output text)
