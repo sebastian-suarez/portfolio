@@ -1,18 +1,28 @@
-# Every IAM resource for the portfolio lives here, plus its Resource Group (resource-group.tf),
-# applied from a laptop with admin credentials. CI applies ../ (the site stack) with a role that has
-# no IAM permissions, so a workflow can never widen its own access.
+# The roles GitHub Actions assumes, plus the portfolio Resource Group (resource-group.tf). Applied by
+# GitHub Actions on merges to main, with the tofu-iam role from ../bootstrap/: it may only manage
+# portfolio-github-* roles that carry portfolio-github-boundary, so every role here stays under that
+# ceiling. The boundary, the tofu-iam role and the OIDC provider live in ../bootstrap/, applied from a
+# laptop, so a workflow can't raise its own ceiling.
 
-# Resource identities come from admin-controlled inputs (terraform.tfvars here), never from the
-# site stack's state: CI can write that state, so reading its outputs would let a CI run choose what
-# the next laptop apply grants.
+# Resource identities come from terraform.tfvars here, never from the site stack's state: the site
+# apply role can write that state, so reading its outputs would let it choose what these roles grant.
 data "aws_caller_identity" "current" {}
 
 locals {
+  account_id = data.aws_caller_identity.current.account_id
+
   # Same naming rule as ../s3.tf.
   site_bucket_arn  = "arn:aws:s3:::site-${replace(var.domain, ".", "-")}"
-  distribution_arn = "arn:aws:cloudfront::${data.aws_caller_identity.current.account_id}:distribution/${var.cloudfront_distribution_id}"
+  distribution_arn = "arn:aws:cloudfront::${local.account_id}:distribution/${var.cloudfront_distribution_id}"
   state_bucket_arn = "arn:aws:s3:::${var.state_bucket}"
   site_state_key   = "portfolio/terraform.tfstate"
+  iam_state_key    = "portfolio/iam.tfstate"
+  group_arn        = "arn:aws:resource-groups:${var.aws_region}:${local.account_id}:group/${var.project}"
+
+  # Created by ../bootstrap/ with the same var.project.
+  oidc_provider_arn = "arn:aws:iam::${local.account_id}:oidc-provider/token.actions.githubusercontent.com"
+  boundary_arn      = "arn:aws:iam::${local.account_id}:policy/${var.project}-github-boundary"
+  managed_roles_arn = "arn:aws:iam::${local.account_id}:role/${var.project}-github-*"
 
   # GitHub's immutable OIDC subject: repositories created after 15 Jul 2026 send
   # repo:OWNER@OWNER_ID/REPO@REPO_ID:<context>, which survives renames and cannot be claimed
@@ -28,18 +38,6 @@ locals {
   }
 }
 
-# One provider per AWS account and URL.
-resource "aws_iam_openid_connect_provider" "github" {
-  url            = "https://token.actions.githubusercontent.com"
-  client_id_list = ["sts.amazonaws.com"]
-  # AWS validates GitHub's provider through its CA chain and ignores these, but the API still
-  # stores them; kept as imported to avoid a pointless diff.
-  thumbprint_list = [
-    "6938fd4d98bab03faadb97b34396831e3780aea1",
-    "1c58a3a8518e8759bf075b76b750d4f2df264fcd",
-  ]
-}
-
 data "aws_iam_policy_document" "trust" {
   for_each = local.role_subjects
 
@@ -49,7 +47,7 @@ data "aws_iam_policy_document" "trust" {
 
     principals {
       type        = "Federated"
-      identifiers = [aws_iam_openid_connect_provider.github.arn]
+      identifiers = [local.oidc_provider_arn]
     }
 
     condition {
