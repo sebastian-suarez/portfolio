@@ -1,7 +1,8 @@
 # Every role here carries portfolio-github-boundary (../bootstrap/boundary.tf): the tofu-iam role can
 # only write roles that have it, and it caps what a role can do whatever its policy says. Each role
 # may hold only its one inline policy: aws_iam_role_policies_exclusive shows any other as drift in
-# plans, and the next apply deletes it.
+# plans, and the next apply deletes it. That includes AWSRevokeOlderSessions from the console's
+# "Revoke active sessions"; see ../README.md for the order to use after a compromise.
 
 # --- Deploy: publishes the built site (.github/workflows/deploy.yml) ---
 

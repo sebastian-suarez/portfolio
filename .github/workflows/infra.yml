@@ -21,8 +21,10 @@ permissions:
 # Pull requests: one plan per PR; a newer push cancels the older plan.
 # main: one run at a time and never cancelled mid-run, so a run's IAM and site applies both finish
 # before the next run starts. A newer queued run replaces an older queued one; it applies the newer tip.
+# The main group keeps the name the apply job used before, so a re-run of an older run (which keeps
+# its old workflow file) still queues behind new runs. Other refs get their own group.
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('infra-plan-{0}', github.event.pull_request.number) || format('infra-apply-{0}', github.ref) }}
+  group: ${{ github.event_name == 'pull_request' && format('infra-plan-{0}', github.event.pull_request.number) || github.ref == 'refs/heads/main' && 'infra-apply' || format('infra-other-{0}', github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
