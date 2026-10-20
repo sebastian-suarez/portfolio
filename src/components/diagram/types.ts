@@ -1,11 +1,13 @@
 export type Tone = 'muted' | 'accent';
 export type NodeTone = 'default' | 'accent' | 'accent-fill';
 export type Shape = 'rect' | 'circle';
+/** Region looks live in CSS: a tinted glass panel, or the two rings of the architecture diagram. */
+export type RegionTone = 'panel' | 'ring' | 'ring-inner';
 
 /** A plain string is a regular line; an object can be bold. */
 export type NodeLine = string | { text: string; bold?: boolean };
 
-/** Background panel or ring. Colors are diagram data, passed through as-is. */
+/** Background panel or ring. */
 export interface DiagramRegion {
   shape?: Shape;
   x: number;
@@ -13,8 +15,7 @@ export interface DiagramRegion {
   w: number;
   h: number;
   radius?: number;
-  fill: string;
-  stroke: string;
+  tone: RegionTone;
 }
 
 /** A labelled box (or disc). Lines are explicit: SVG text does not wrap. */
@@ -28,7 +29,10 @@ export interface DiagramNode {
   tone?: NodeTone;
 }
 
-/** A polyline. Arrowhead on the last point unless `arrow` is false. */
+/**
+ * A polyline. Arrowhead on the last point unless `arrow` is false.
+ * Accent edges carry the travelling pulse.
+ */
 export interface DiagramEdge {
   points: Array<[number, number]>;
   arrow?: boolean;
@@ -47,7 +51,7 @@ export interface DiagramLabel {
 }
 
 export interface DiagramData {
-  /** Unique per page; namespaces the SVG marker ids. */
+  /** Unique per page; namespaces the SVG ids. */
   id: string;
   width: number;
   height: number;
@@ -55,8 +59,6 @@ export interface DiagramData {
   label: string;
   /** One or two sentences spelling out the relationships the arrows encode. */
   description: string;
-  /** Node fill override (the hero's nodes sit on a darker panel). */
-  nodeFill?: string;
   regions?: DiagramRegion[];
   nodes: DiagramNode[];
   edges: DiagramEdge[];

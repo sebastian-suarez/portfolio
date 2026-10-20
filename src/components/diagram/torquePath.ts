@@ -8,10 +8,9 @@ export const torquePath: DiagramData = {
   label: 'Torque path of the RS50 force-feedback bridge',
   description:
     'Inside the Wine bottle, Assetto Corsa sends DirectInput calls to a dinput8.dll proxy. The proxy passes force requests to the rs50d daemon on the macOS host, which drives the Logitech RS50 with torque at 1 kHz.',
-  nodeFill: '#222222',
   regions: [
-    { x: 0, y: 32, w: 600, h: 168, radius: 16, fill: '#191919', stroke: '#2a2a2a' },
-    { x: 0, y: 264, w: 600, h: 168, radius: 16, fill: '#191919', stroke: '#2a2a2a' },
+    { x: 0, y: 32, w: 600, h: 168, radius: 16, tone: 'panel' },
+    { x: 0, y: 264, w: 600, h: 168, radius: 16, tone: 'panel' },
   ],
   nodes: [
     { x: 32, y: 90, w: 200, h: 72, lines: [{ text: 'Assetto Corsa', bold: true }, 'DirectInput client'] },

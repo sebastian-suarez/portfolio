@@ -9,8 +9,8 @@ export const rings: DiagramData = {
   description:
     'The domain core sits inside the application ring, which sits inside the infrastructure and interfaces ring. From the outer ring, arrows fan out to six target types: MCP servers, CLI tools and embedded Rust on one side, mobile, desktop and libraries on the other.',
   regions: [
-    { shape: 'circle', x: 240, y: 20, w: 280, h: 280, fill: '#1a1a1a', stroke: '#3a3a3a' },
-    { shape: 'circle', x: 285, y: 65, w: 190, h: 190, fill: '#222222', stroke: '#454545' },
+    { shape: 'circle', x: 240, y: 20, w: 280, h: 280, tone: 'ring' },
+    { shape: 'circle', x: 285, y: 65, w: 190, h: 190, tone: 'ring-inner' },
   ],
   nodes: [
     { shape: 'circle', x: 330, y: 110, w: 100, h: 100, lines: [{ text: 'Domain', bold: true }], tone: 'accent-fill' },
