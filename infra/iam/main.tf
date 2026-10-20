@@ -1,6 +1,6 @@
-# Every IAM resource for the portfolio lives here, applied from a laptop with admin credentials.
-# CI applies ../ (the site stack) with a role that has no IAM permissions, so a workflow can never
-# widen its own access.
+# Every IAM resource for the portfolio lives here, plus its Resource Group (resource-group.tf),
+# applied from a laptop with admin credentials. CI applies ../ (the site stack) with a role that has
+# no IAM permissions, so a workflow can never widen its own access.
 
 # Resource identities come from admin-controlled inputs (terraform.tfvars here), never from the
 # site stack's state: CI can write that state, so reading its outputs would let a CI run choose what
