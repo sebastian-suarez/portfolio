@@ -7,7 +7,7 @@ export const pipeline: DiagramData = {
   height: 340,
   label: 'From an edit to production: local dev, a pull request, two required checks, the merge, then deploy or infrastructure apply',
   description:
-    'Work starts locally with the Astro dev server and type checks, then goes up as a pull request into main. Two checks, Build and Terraform plan, must pass before the ruleset allows the merge. A merge that changes the site runs the deploy job, which syncs the build to S3 and invalidates CloudFront. A merge that changes infra/ runs the Terraform apply job, which updates the site stack in AWS and Cloudflare.',
+    'Work starts locally with the Astro dev server and type checks, then goes up as a pull request into main. Two checks, Build and Terraform plan, must pass before the ruleset allows the merge. A merge that changes the site runs the deploy job, which syncs the build to S3 and invalidates CloudFront. A merge that changes infra/ runs the Terraform apply jobs, which update the IAM stack and then the site stack in AWS and Cloudflare.',
   nodes: [
     { x: 0, y: 20, w: 180, h: 72, lines: [{ text: 'Local dev', bold: true }, 'astro dev, check'] },
     { x: 290, y: 20, w: 180, h: 72, lines: [{ text: 'Pull request', bold: true }, 'into main'] },
@@ -15,8 +15,8 @@ export const pipeline: DiagramData = {
     { x: 580, y: 150, w: 180, h: 72, lines: [{ text: 'Merge to main', bold: true }, 'ruleset enforced'], tone: 'accent' },
     { x: 290, y: 150, w: 180, h: 72, lines: [{ text: 'Deploy job', bold: true }, 'production env'] },
     { x: 0, y: 150, w: 180, h: 72, lines: [{ text: 'S3 + CloudFront', bold: true }, 'sync, invalidate'] },
-    { x: 290, y: 260, w: 180, h: 72, lines: [{ text: 'Terraform apply', bold: true }, 'infra env'] },
-    { x: 0, y: 260, w: 180, h: 72, lines: [{ text: 'AWS + Cloudflare', bold: true }, 'site stack'] },
+    { x: 290, y: 260, w: 180, h: 72, lines: [{ text: 'Terraform applies', bold: true }, 'IAM, then site'] },
+    { x: 0, y: 260, w: 180, h: 72, lines: [{ text: 'AWS + Cloudflare', bold: true }, 'IAM and site stacks'] },
   ],
   edges: [
     { points: [[180, 56], [285, 56]] },

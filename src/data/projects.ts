@@ -48,7 +48,7 @@ export const projects: Project[] = [
     slug: 'portfolio',
     title: 'This portfolio',
     blurb:
-      "The site you are reading. Static Astro pages in a private S3 bucket behind CloudFront and Cloudflare, infrastructure in OpenTofu, and CI that can't edit the IAM roles it runs as.",
+      "The site you are reading. Static Astro pages in a private S3 bucket behind CloudFront and Cloudflare, infrastructure in OpenTofu, and CI held under a permissions boundary it can't move.",
     tags: ['Astro', 'OpenTofu', 'AWS', 'Cloudflare', 'GitHub Actions'],
     repo: repoUrl,
     page: { href: '/how-it-works/', label: 'How it works' },

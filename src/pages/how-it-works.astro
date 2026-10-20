@@ -87,8 +87,8 @@ const toc = [
             <li>
               <strong>Pull request.</strong> <code>main</code> only takes pull requests: no direct pushes, no force pushes,
               no deletion and no bypass. Build runs a clean install and the production build. Terraform plan runs on every
-              pull request; when the infrastructure changed, it formats and validates both stacks, plans the site stack
-              with a read-only role and posts the plan to the job summary.
+              pull request; when the infrastructure changed, it formats and validates all three stacks, plans the IAM and
+              site stacks with a read-only role and posts the plans to the job summary.
             </li>
             <li>
               <strong>Forks and bots.</strong> Pull requests from forks or Dependabot get no cloud credentials, so they can
@@ -104,9 +104,9 @@ const toc = [
               each deploy invalidates CloudFront, so a change is live as soon as the invalidation finishes.
             </li>
             <li>
-              <strong>Infrastructure.</strong> A merge that changes <code>infra/</code> runs the Terraform apply job in the
-              <code>infra</code> environment. It re-plans the tip of <code>main</code> before applying, so re-running an
-              old job can't roll anything back.
+              <strong>Infrastructure.</strong> A merge that changes <code>infra/</code> runs two apply jobs: the IAM stack
+              in the <code>infra-iam</code> environment, then the site stack in the <code>infra</code> environment. Both
+              apply the tip of <code>main</code>, one run at a time, so re-running an old job can't roll anything back.
             </li>
             <li>
               <strong>Upkeep.</strong> Dependabot opens grouped weekly updates, and push protection blocks pushes that
@@ -161,32 +161,44 @@ const toc = [
         <div class="hiw-panel glass-panel">
           <div class="hiw-head">
             <h2 id="iac-title">Infrastructure as code</h2>
-            <p>The site's AWS resources and DNS records live in OpenTofu, in two stacks split so CI can't edit the IAM roles it runs as.</p>
+            <p>
+              The site's AWS resources and DNS records live in OpenTofu, in three stacks. CI applies two of them, below a
+              ceiling only a person can move.
+            </p>
           </div>
           <figure class="hiw-figure-inline">
             <Diagram data={iacSplit} minScale={DIAGRAM_MIN_SCALE} />
-            <figcaption>A person owns IAM; CI owns the site stack.</figcaption>
+            <figcaption>A person sets the ceiling; CI works below it.</figcaption>
           </figure>
           <ul class="hiw-points">
             <li>
-              <strong>Two stacks, one state bucket.</strong> Both keep their state in one versioned, encrypted S3 bucket,
-              locked with S3's native lock files. That bucket is the one resource made by hand, before anything else.
+              <strong>Three stacks, one state bucket.</strong> All three keep their state in one versioned, encrypted S3
+              bucket, locked with S3's native lock files. That bucket is the one resource made by hand, before anything
+              else.
             </li>
             <li>
               <strong>Site stack.</strong> The bucket, the distribution and its function, the certificate and the
-              Cloudflare records. CI plans it on pull requests that change it and applies it on merge. It holds no IAM.
+              Cloudflare records. It holds no IAM.
             </li>
             <li>
-              <strong>IAM stack.</strong> The GitHub OIDC provider, the three roles and a Resource Group for the project. A
-              person applies it from a laptop with admin single sign-on; CI only validates it. It reads the bucket and
-              distribution names from its own settings, never from the site stack's state, because CI can write that
-              state.
+              <strong>IAM stack.</strong> The deploy, plan and apply roles, and a Resource Group for the project. CI
+              applies it before the site stack, so new permissions exist before the site needs them.
+            </li>
+            <li>
+              <strong>Bootstrap stack.</strong> The GitHub OIDC provider, a permissions boundary and the role that applies
+              the IAM stack. A person applies it from a laptop with admin single sign-on, and only when the ceiling must
+              move.
+            </li>
+            <li>
+              <strong>The ceiling.</strong> Every role CI manages must carry that boundary, which caps it at the site
+              bucket, the site state, CloudFront, ACM and read-only IAM. CI can't edit the boundary, the OIDC provider or
+              the role it applies IAM with.
             </li>
             <li>
               <strong>Trust.</strong> Each role trusts one GitHub job context, matched on GitHub's immutable OIDC subject,
-              which survives renames. Pull requests get the read-only plan role, the <code>infra</code> environment the
-              apply role and <code>production</code> the deploy role. Sessions last an hour, and no AWS keys are stored
-              anywhere.
+              which survives renames. Pull requests get the read-only plan role, and the <code>infra-iam</code>,
+              <code>infra</code> and <code>production</code> environments get the IAM, apply and deploy roles. All three
+              environments take <code>main</code> only. Sessions last an hour, and no AWS keys are stored anywhere.
             </li>
             <li>
               <strong>Cloudflare tokens.</strong> Two API tokens limited to this zone: a read-only one for plans, and one
