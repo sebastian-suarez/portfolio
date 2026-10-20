@@ -1,7 +1,10 @@
+import { LAYOUT_EVENT } from './layout-event';
+
 /**
  * GSAP ScrollTrigger fallback for browsers without CSS scroll-driven animations.
  * Values mirror the CSS in global.css: the manifesto word scrub runs over the
- * paragraph's cover range, each word from 8% + i * 0.5% to 22% + i * 0.5%;
+ * paragraph's cover range, each word from 8% + i * 0.5% to 22% + i * 0.5%,
+ * and moves colour (never opacity) from --scrub-from to ink so text stays readable;
  * the card rise covers entry 0% → 70%, which is 0.7 × min(card height, viewport
  * height) of scrolling from the moment the card's top crosses the viewport bottom.
  * The pinned column is position: sticky, which needs no fallback.
@@ -20,12 +23,15 @@ export async function initMotionFallback(): Promise<void> {
   gsap.registerPlugin(ScrollTrigger);
 
   if (manifesto && words.length > 0) {
+    const styles = getComputedStyle(document.documentElement);
+    const from = styles.getPropertyValue('--scrub-from').trim() || '#7d8aa3';
+    const to = styles.getPropertyValue('--color-ink').trim() || '#233047';
     const timeline = gsap.timeline({
       scrollTrigger: { trigger: manifesto, start: 'top bottom', end: 'bottom top', scrub: true },
     });
     words.forEach((word, i) => {
       const start = 0.08 + i * 0.005;
-      timeline.fromTo(word, { opacity: 0.18 }, { opacity: 1, duration: 0.14, ease: 'none' }, start);
+      timeline.fromTo(word, { color: from }, { color: to, duration: 0.14, ease: 'none' }, start);
     });
     // Pad the timeline to the full cover range so scroll progress maps 1:1.
     timeline.set({}, {}, 1);
@@ -50,4 +56,7 @@ export async function initMotionFallback(): Promise<void> {
       },
     );
   }
+
+  // Tab switches change the page height; trigger positions below the tabs go stale.
+  window.addEventListener(LAYOUT_EVENT, () => ScrollTrigger.refresh());
 }

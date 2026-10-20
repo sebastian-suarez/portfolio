@@ -1,0 +1,175 @@
+/* Résumé page, from the new design's resume.css. A plain document on the blue canvas, built to print. */
+
+.resume-page {
+  line-height: 1.65;
+}
+.resume-page a {
+  color: var(--color-link);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.resume-nav,
+.resume-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  max-width: 1050px;
+  margin: auto;
+  padding: 25px 5%;
+  font-size: 13px;
+}
+.resume-nav {
+  border-bottom: 1px solid var(--color-line-strong);
+}
+.resume-nav a,
+.resume-footer a,
+.resume .profiles a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+}
+.resume {
+  max-width: 850px;
+  margin: 60px auto 40px;
+  padding: 0 5%;
+  outline: none;
+}
+.resume-header {
+  border-bottom: 2px solid var(--color-link);
+  padding-bottom: 28px;
+}
+.resume h1 {
+  font-size: 52px;
+  font-weight: 500;
+  line-height: 1.1;
+  letter-spacing: -0.045em;
+  margin: 12px 0 20px;
+}
+.resume h2 {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-link);
+  margin: 35px 0 15px;
+}
+.resume h3 {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 0;
+}
+.resume h3 span {
+  font-weight: 400;
+}
+.resume p {
+  margin: 10px 0;
+}
+.resume strong {
+  font-weight: 600;
+}
+.resume .kicker {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.resume .role {
+  font-size: 20px;
+}
+.resume .profiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 25px;
+  font-size: 14px;
+  margin-top: 15px;
+}
+.resume .note,
+.resume .dates {
+  font-size: 13px;
+  color: var(--color-muted);
+}
+.resume article {
+  margin: 26px 0;
+}
+
+@media (max-width: 600px) {
+  .resume-nav {
+    padding: 20px 6%;
+  }
+  .resume {
+    margin: 36px auto;
+    padding: 0 6%;
+  }
+  .resume h1 {
+    font-size: 44px;
+  }
+  .resume .role {
+    font-size: 18px;
+  }
+  .resume-header p a {
+    overflow-wrap: anywhere;
+  }
+  .resume-footer {
+    padding: 20px 6%;
+  }
+}
+
+@media print {
+  @page {
+    margin: 16mm;
+  }
+  .resume-page {
+    background: white;
+    color: black;
+    font-size: 10pt;
+    line-height: 1.4;
+  }
+  .resume-nav,
+  .resume-footer,
+  .resume-page .skip-link,
+  .resume .kicker {
+    display: none;
+  }
+  .resume {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+  .resume h1 {
+    font-size: 28pt;
+    margin: 0 0 10pt;
+  }
+  .resume .role {
+    font-size: 12pt;
+  }
+  .resume h2 {
+    font-size: 11pt;
+    margin: 19pt 0 8pt;
+    break-after: avoid;
+  }
+  .resume h3 {
+    font-size: 11pt;
+    break-after: avoid;
+  }
+  .resume p {
+    margin: 6pt 0;
+  }
+  .resume-header {
+    padding-bottom: 12pt;
+  }
+  .resume .profiles {
+    font-size: 10pt;
+  }
+  .resume .note,
+  .resume .dates {
+    font-size: 9pt;
+  }
+  .resume article {
+    margin: 14pt 0;
+    break-inside: avoid;
+  }
+  .resume-page a {
+    color: black;
+    text-decoration: none;
+  }
+}

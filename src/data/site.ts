@@ -1,14 +1,15 @@
-// Open slots from the handoff live here. Replace the placeholders before publishing.
 export const site = {
-  name: 'Sebastián Suárez',
-  fullName: 'Sebastián Suárez Valencia',
-  title: 'Sebastián Suárez, backend lead',
+  name: 'Sebastian Suarez',
+  fullName: 'Sebastian Suarez Valencia',
+  /** Headline role on the portfolio. The résumé page uses the CV title instead (cv.ts). */
+  role: 'Backend lead and architect',
+  title: 'Sebastian Suarez, backend lead',
   description:
     'Backend lead and architect for product teams. Node.js, TypeScript and AWS backends, with Rust daemons and sim-racing hardware as proof.',
   location: 'Medellín, Colombia',
-  email: '[YOUR-EMAIL]',
-  linkedin: 'https://www.linkedin.com/',
-  github: 'https://github.com/',
+  email: 'contact@sebastiansuarez.dev',
+  linkedin: 'https://www.linkedin.com/in/sebastiansuarezvalencia/',
+  github: 'https://github.com/sebastian-suarez',
 } as const;
 
 export const mailto = `mailto:${site.email}`;

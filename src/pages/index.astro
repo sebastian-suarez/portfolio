@@ -1,24 +1,33 @@
 ---
 import Base from '../layouts/Base.astro';
-import { Nav } from '../components/Nav';
+import { Header } from '../components/Header';
+import { LightField } from '../components/LightField';
 import { Hero } from '../components/Hero';
 import { EmployerStrip } from '../components/EmployerStrip';
-import { WorkSection } from '../components/WorkSection';
+import { ClientWork } from '../components/ClientWork';
+import { ProjectsSection } from '../components/ProjectsSection';
 import { Manifesto } from '../components/Manifesto';
 import { Accordion } from '../components/Accordion';
+import { Experience } from '../components/Experience';
+import { Background } from '../components/Background';
 import { Contact } from '../components/Contact';
 import { site } from '../data/site';
 ---
 
 <Base title={site.title} description={site.description}>
-  <div id="top" class="flex min-w-0 flex-col">
-    <Nav />
-    <main class="contents">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <div id="top" class="page">
+    <LightField variant="top" />
+    <Header />
+    <main id="main" tabindex="-1">
       <Hero />
       <EmployerStrip />
-      <WorkSection />
+      <ClientWork />
+      <ProjectsSection />
       <Manifesto />
       <Accordion />
+      <Experience />
+      <Background />
     </main>
     <Contact />
   </div>
@@ -27,10 +36,14 @@ import { site } from '../data/site';
 <script>
   import { initAccordion } from '../scripts/accordion';
   import { initScrollableHosts } from '../scripts/scrollable-hosts';
+  import { initProjectTabs } from '../scripts/project-tabs';
+  import { initDiagramReveal } from '../scripts/diagram-reveal';
   import { initMotionFallback } from '../scripts/motion-fallback';
 
   initAccordion();
   initScrollableHosts();
+  initProjectTabs();
+  initDiagramReveal();
   // Firefox parity for the scroll-driven CSS (word scrub, card rise).
   // Returns early, without fetching GSAP, wherever view() timelines exist.
   initMotionFallback();
