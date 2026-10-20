@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths-ignore:
-      - "infra/**" # infra is applied from your Mac with `tofu apply`, not from CI
+      - "infra/**" # infra changes are applied by infra.yml
   workflow_dispatch:
 
 # One deploy at a time, never cancelled mid-sync.

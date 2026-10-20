@@ -21,23 +21,11 @@ variable "domain" {
 }
 
 variable "github_owner" {
-  description = "GitHub user or org that owns the repo (the OIDC trust is scoped to it)."
+  description = "GitHub user or org that owns the repo (used in the Repo tag)."
   type        = string
 }
 
 variable "github_repo" {
-  description = "Repository name (without owner)."
+  description = "Repository name, without owner (used in the Repo tag)."
   type        = string
-}
-
-variable "github_deploy_branch" {
-  description = "Only pushes to this branch may assume the deploy role."
-  type        = string
-  default     = "main"
-}
-
-variable "github_environment" {
-  description = "GitHub Actions environment the deploy job runs in (also trusted by the role)."
-  type        = string
-  default     = "production"
 }
