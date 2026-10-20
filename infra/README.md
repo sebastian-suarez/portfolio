@@ -44,12 +44,13 @@ tofu plan -out=tfplan && tofu apply tfplan       # after merging an infra/iam ch
 tofu output                                      # role ARNs for the GitHub variables
 ```
 
-If the distribution is ever replaced, put its new ID in `iam/terraform.tfvars` and re-apply `infra/iam/` so the deploy role points at it.
+If the distribution is ever replaced, put its new ID in `iam/terraform.tfvars`, re-apply `infra/iam/` so the deploy role points at it, and update the repo variable (`gh variable set CLOUDFRONT_DISTRIBUTION_ID --body <new-id>`) so deploys invalidate the right distribution.
 
 ### Fresh account, or rebuilding CI access
 
 Everything below runs from a laptop with admin credentials; CI cannot bootstrap itself.
 
+0. Create the state bucket (versioning on, SSE-S3, public access blocked), e.g. `tfstate-<account-id>-us-east-1`, and put its name in `backend.hcl` (`bucket = "..."`).
 1. Apply `infra/` (site stack).
 2. Restrict the `production` and `infra` GitHub environments to `main` before any role trusts them.
 3. Set `cloudfront_distribution_id` in `iam/terraform.tfvars`, then apply `infra/iam/`.
