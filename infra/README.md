@@ -21,7 +21,7 @@ CI can change IAM, but only below a ceiling it can't move. The `tofu-iam` role m
 | `portfolio-github-tofu-apply` | `environment:infra` | manage the site bucket, CloudFront, ACM, and the site stack's state | `infra/iam/` |
 | `portfolio-github-tofu-iam` | `environment:infra-iam` | manage `portfolio-github-*` roles under the boundary, the Resource Group, and the IAM stack's state | `infra/bootstrap/` |
 
-The three roles in `infra/iam/` carry the boundary, and each may hold only its own inline policy: any other shows up as drift in plans, and the next apply deletes it. The boundaries are permanent. Never remove one, not even to roll back: an inline policy planted by a bad run is harmless only while the boundary is there.
+The three roles in `infra/iam/` carry the boundary, and each may hold only its own inline policy: any other shows up as drift in plans, and the next apply deletes it. That includes `AWSRevokeOlderSessions`, which the IAM console's "Revoke active sessions" adds: after revoking, don't merge an `infra/iam/` change until the revoked sessions have expired (an hour with the current settings). The boundaries are permanent. Never remove one, not even to roll back: an inline policy planted by a bad run is harmless only while the boundary is there.
 
 The trust uses GitHub's immutable subject, `repo:OWNER@OWNER_ID/REPO@REPO_ID:<context>` (default for repositories created after 15 Jul 2026). All three GitHub environments only accept deployments from `main`; `infra-iam` also disallows admin bypass.
 
@@ -29,7 +29,7 @@ The trust uses GitHub's immutable subject, `repo:OWNER@OWNER_ID/REPO@REPO_ID:<co
 
 - Site change: open a PR. CI builds it; after merge, `deploy.yml` builds and publishes to S3 and invalidates CloudFront.
 - `infra/` or `infra/iam/` change: open a PR from a branch of this repo. The `Terraform plan` check plans both stacks and posts the plans in the job summary (public, like the rest of this repo). After merge, `Terraform apply (IAM)` re-plans the current `main` and applies `infra/iam/` in the `infra-iam` environment, then `Terraform apply` applies `infra/` in the `infra` environment. Runs on `main` go one at a time. Fork and Dependabot PRs get no cloud credentials: they can bump actions, but a change to OpenTofu code from them fails the check.
-- IAM is applied first. To remove something together with its permission, drop the resource in one PR and the permission in a later one.
+- IAM is applied first. To remove something together with its permission, drop the resource in one PR and the permission in a later one. Deploy runs in parallel with the infra applies, so a site or deploy-script change that needs a new permission goes in a later PR than the IAM change.
 - If `Terraform apply` stops with "infra/ changed after the IAM apply", a newer merge's run applies both stacks; nothing to do. To retry an old run, use "Re-run all jobs", not only the failed job.
 - `infra/bootstrap/` change (a new AWS service for CI, the tofu-iam role, the OIDC provider): open a PR (CI validates it), merge, then apply it from a laptop. The IAM apply job warns when this is pending.
 
@@ -76,10 +76,10 @@ If the distribution is ever replaced, put its new ID in `iam/terraform.tfvars` i
 
 From a laptop with admin credentials. Keep every boundary in place throughout.
 
-1. Delete the `portfolio-github-tofu-iam` role (console, or remove it from `infra/bootstrap/` and apply).
-2. Revoke active sessions on every `portfolio-github-*` role (IAM console → role → "Revoke active sessions").
+1. Delete the `portfolio-github-tofu-iam` role (console, or remove it from `infra/bootstrap/` and apply). Its sessions lose all permissions with it.
+2. Delete any `portfolio-github-*` role that isn't in the code.
 3. Apply a trusted `infra/iam/`: it restores the policies and trusts and deletes unexpected inline policies.
-4. Delete any `portfolio-github-*` role that isn't in the code.
+4. Only then revoke active sessions on the three roles (IAM console → role → "Revoke active sessions"). Revoking adds an inline policy, `AWSRevokeOlderSessions`, which the next apply of `infra/iam/` deletes. So don't apply `infra/iam/` or restore the tofu-iam role for 12 hours, the longest a role session can last.
 5. Rotate the Cloudflare tokens.
 
 To stop CI applying IAM without an incident: remove the tofu-iam role from `infra/bootstrap/` and apply, then delete the `Terraform apply (IAM)` job and the `infra-iam` environment. `infra/iam/` goes back to laptop applies, boundaries included.

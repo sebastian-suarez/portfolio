@@ -61,14 +61,15 @@ The boundaries are permanent. They stay on the roles even if CI stops applying I
 Never remove a boundary as part of a rollback.
 - A failed CI apply: fix forward in a PR, or apply `infra/iam/` from the laptop (admin).
 - Stop CI applying IAM: from the laptop, remove the `portfolio-github-tofu-iam` role from `infra/bootstrap/` and apply; delete the IAM apply job and the `infra-iam` environment. `infra/iam/` goes back to laptop applies, boundaries included.
-- Suspected compromise of `main` or CI: from the laptop, (1) delete the tofu-iam role's trust or the role itself; (2) revoke active sessions on every `portfolio-github-*` role (IAM console, "Revoke active sessions"); (3) apply a trusted `infra/iam/` (restores policies and trusts, deletes unexpected inline policies); (4) delete any `portfolio-github-*` role that is not in the code; (5) rotate the Cloudflare tokens. Boundaries stay throughout.
+- Suspected compromise of `main` or CI: from the laptop, (1) delete the tofu-iam role; (2) delete any `portfolio-github-*` role that is not in the code; (3) apply a trusted `infra/iam/` (restores policies and trusts, deletes unexpected inline policies); (4) only then revoke active sessions on the three roles (IAM console, "Revoke active sessions"), and don't apply `infra/iam/` for 12 hours, because that apply deletes the revocation policy; (5) rotate the Cloudflare tokens. Boundaries stay throughout.
 
 ## Accepted risks
 - CI can rewrite the trust policy of any `portfolio-github-*` role: IAM has no condition key for trust content, and SCPs don't apply to the management account. Worst case after a compromise of `main`: a role assumable from outside with the boundary's rights (site bucket, site state, CloudFront, ACM). That is the site apply role's reach today, plus persistence.
 - Raising the ceiling (for example, a new AWS service for CI) needs a laptop apply of `infra/bootstrap/`.
 - IAM applies before the site, so removing a resource and its permission in the same PR fails. Do it in two PRs.
 - The boundary keeps `cloudfront:*` and `acm:*` on `*`, as the site apply role has today.
-- A compromised run could create extra `portfolio-github-*` roles (each under the boundary). Plans don't list roles outside the code; step (4) of the compromise procedure deletes them.
+- A compromised run could create extra `portfolio-github-*` roles (each under the boundary). Plans don't list roles outside the code; step (2) of the compromise procedure deletes them.
+- Deploy runs in parallel with the infra applies, so a site or deploy-script change that needs a new deploy-role permission must merge after the IAM change. Before this change the window was longer: IAM was applied by hand after the merge.
 
 ## Execution log (20 Oct 2026)
 - Policy simulator, before any apply: the boundary removes none of the 619 actions the three roles were allowed (deploy 5, plan 167, apply 447, wildcards expanded from the AWS service reference). 53 checks on the tofu-iam policy and 19 on an `Action: *` role under the boundary all matched.
@@ -80,3 +81,11 @@ Never remove a boundary as part of a rollback.
 Accepted:
 - A rollback that drops boundaries would activate inline admin policies a compromised run had planted, also for sessions already issued: boundaries are now permanent, the compromise procedure keeps them, and exclusive inline-policy management makes unexpected policies visible and removable.
 - Separate job concurrency groups let runs interleave, and the site job resolved `main` on its own: runs on `main` are now serialized as a whole, the IAM job's commit is passed on, and the site job refuses newer `infra/` code.
+
+## Review log (round 2: two independent reviews of the finished change)
+Accepted:
+- Both reviews: the compromise procedure revoked sessions before the trusted apply, and that apply deletes the revocation policy (`AWSRevokeOlderSessions`) because each role may hold only its own inline policy. The apply now comes first, then the revocation, then a 12-hour hold on IAM applies. The README notes the same for revocations outside an incident.
+- Renaming the `main` concurrency group let a re-run of an older run (which keeps its old workflow file) skip the queue: `main` keeps the old name, `infra-apply`.
+
+Accepted as a documented risk:
+- Deploy can run before a permission it needs is applied. It already could, for longer, when IAM was applied by hand, and making Deploy wait for the infra applies would mean reworking `deploy.yml`. The README says to merge such a permission first.
