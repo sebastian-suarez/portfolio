@@ -46,7 +46,7 @@ jobs:
       # code:  OpenTofu files changed (needs a plan).
       # check: code or this workflow changed (format and validate, no credentials needed).
       # trusted: a branch of this repo opened by a person. Fork and Dependabot runs get no
-      #   Actions secrets and no OIDC token, so they cannot plan.
+      #   Actions secrets (forks get no OIDC token either), so they are never allowed to plan.
       - name: Detect infra changes
         id: changes
         working-directory: .
