@@ -1,0 +1,13 @@
+# OpenTofu / Terraform working files — state lives in S3, never in git
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+# Keep: .terraform.lock.hcl (pins providers), terraform.tfvars (no secrets in it), backend.hcl (bucket name)
