@@ -10,5 +10,6 @@ provider "aws" {
   }
 }
 
-# Auth comes from the CLOUDFLARE_API_TOKEN env var (scoped token: Zone.DNS:Edit + Zone.Zone:Read on this zone only).
+# Auth comes from the CLOUDFLARE_API_TOKEN env var: a token for this zone only, with Zone Read + DNS Read
+# to plan, and DNS Edit as well to apply.
 provider "cloudflare" {}
