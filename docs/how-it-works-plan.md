@@ -57,11 +57,11 @@ Never on the page: account, distribution or zone IDs, ARNs, email addresses, tok
 
 ## Main moved during the work
 
-PRs #7 (the first stage of the origin lock) and #8 (IAM applied from Actions under a permissions boundary) merged while this PR was open. Main was merged into the branch and the new setup verified live on 20 Oct 2026:
+PRs #7 and #8 (IAM applied from Actions under a permissions boundary) merged while this PR was open. Main was merged into the branch and the new setup verified live on 20 Oct 2026:
 - the boundary sits on the deploy, plan and apply roles;
 - the IAM-apply role trusts only the `infra-iam` environment, which takes `main` only, with no admin bypass.
 
-The infrastructure split, the pipeline, the services list and the card now describe three stacks. The origin lock stays off the page for now; add it when its rollout is finished.
+The infrastructure split, the pipeline, the services list and the card now describe three stacks.
 
 ## Review log
 
@@ -89,3 +89,7 @@ Accepted:
 
 Rejected:
 - Raise the phone floor for diagrams from 0.6 to about 0.93, or build stacked phone layouts. The 0.6 floor (about 9 px text) is the site-wide choice from the earlier redesign review, and 0.93 would mean scrolling about 2.4 screens per diagram. Every diagram carries a text description, and the prose under it holds the same facts. Vertical phone layouts would be a site-wide follow-up, not part of this change.
+
+Implementation review, round 2 (after merging main; one adversarial review with the task and one independent review without it, 20 Oct 2026), two findings, both accepted:
+- Both: the note on what merged during the work described the state of another change in this public plan. It now names the PRs only.
+- "Caps every CI role" overstated the boundary: the role that applies IAM has none; its own policy limits it instead (`infra/bootstrap/tofu-iam.tf`). The diagram, the card and the page lead now say the boundary caps the roles CI manages.

@@ -42,7 +42,7 @@ export const iacSplit: DiagramData = {
   labels: [
     { x: 180, y: 50, w: 110, align: 'middle', lines: ['applies'] },
     { x: 470, y: 50, w: 110, align: 'middle', lines: ['defines'] },
-    { x: 450, y: 126, w: 150, align: 'middle', lines: ['caps every CI role'] },
+    { x: 450, y: 126, w: 150, align: 'middle', lines: ['caps CI-managed roles'] },
     { x: 180, y: 198, w: 110, align: 'middle', tone: 'accent', lines: ['applies'] },
     { x: 470, y: 198, w: 110, align: 'middle', lines: ['then'] },
     { x: 580, y: 270, w: 180, align: 'middle', lines: ['holds no IAM'] },
