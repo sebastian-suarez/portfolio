@@ -20,6 +20,12 @@ variable "domain" {
   }
 }
 
+variable "origin_lock_enforce" {
+  description = "true: CloudFront answers 403 to requests that did not come through Cloudflare. false (report mode): it serves them and logs a line to CloudWatch Logs in us-east-1. See README.md, Origin lock."
+  type        = bool
+  default     = true
+}
+
 variable "github_owner" {
   description = "GitHub user or org that owns the repo (used in the Repo tag)."
   type        = string

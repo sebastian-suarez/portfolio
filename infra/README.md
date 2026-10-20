@@ -1,12 +1,12 @@
 # infra: static site on AWS behind Cloudflare
 
-Private S3 bucket → CloudFront (OAC, ACM cert, viewer-request function for `www→apex` + `/dir→/dir/index.html`) → Cloudflare proxied CNAMEs (`@` and `www`, SSL Full (strict)).
+Private S3 bucket → CloudFront (OAC, ACM cert, viewer-request function for the origin lock + `www→apex` + `/dir→/dir/index.html`) → Cloudflare proxied CNAMEs (`@` and `www`, SSL Full (strict)). CloudFront only answers requests that came through Cloudflare (see "Origin lock").
 
 Two OpenTofu root modules share one state bucket (`backend.hcl`, S3-native locking):
 
 | Module | What | Applied by |
 | --- | --- | --- |
-| `infra/` | S3, CloudFront, ACM, Cloudflare DNS. No IAM. | GitHub Actions (`.github/workflows/infra.yml`) |
+| `infra/` | S3, CloudFront, ACM, Cloudflare DNS and request header rule. No IAM. | GitHub Actions (`.github/workflows/infra.yml`) |
 | `infra/iam/` | GitHub OIDC provider, the three roles below, and the `portfolio` Resource Group | A laptop with admin credentials |
 
 Keeping IAM out of the CI-applied module means no workflow can widen its own access. The IAM module takes the bucket and distribution identities from its own `terraform.tfvars` rather than from the site stack's state, because CI can write that state.
@@ -29,6 +29,38 @@ The trust uses GitHub's immutable subject, `repo:OWNER@OWNER_ID/REPO@REPO_ID:<co
 
 `main` is protected by a ruleset: changes go through a PR, and the `Build` and `Terraform plan` checks must pass.
 
+## Origin lock
+
+CloudFront only serves requests that came through Cloudflare, so Cloudflare's analytics, WAF and DDoS protection always apply. A Request Header Transform Rule (`origin-lock.tf`) adds `x-origin-verify: <secret>` to the HTTPS requests Cloudflare sends to CloudFront for `@` and `www`. The viewer-request function answers 403 when the header is missing or wrong. That blocks the `*.cloudfront.net` name and requests sent straight to a CloudFront IP with the real Host.
+
+- The secret (`random_password.origin_verify`) is kept only in the state. The function holds SHA-256 digests of it, so its code still shows in plans. The Cloudflare rules show as `(sensitive value)`, so review them in the PR diff.
+- Only HTTPS requests get the header (`ssl` in the rule), because Full (strict) uses the visitor's scheme toward the origin. Plain HTTP reaches CloudFront without it and gets CloudFront's redirect to HTTPS, which runs before the function.
+- OpenTofu owns the zone's `http_request_late_transform` phase: a Request Header Transform Rule added in the dashboard is removed by the next apply. Add new ones in `origin-lock.tf`.
+- Report mode: `origin_lock_enforce = false` serves every request and logs the failed checks (host, and whether `cf-ray` was present) to CloudWatch Logs in us-east-1, log group `/aws/cloudfront/function/portfolio-viewer-request`. Use it for a first rollout and before removing the lock.
+
+```bash
+curl -sI https://<cloudfront_domain_name>/ | head -1                                         # 403
+curl -sI --resolve sebastiansuarez.dev:443:<cloudfront-ip> https://sebastiansuarez.dev/ | head -1   # 403
+curl -sI https://sebastiansuarez.dev/ | head -1                                              # 200
+```
+
+**Rotation**, with no downtime and no gap in the lock: three PRs, each applied before the next.
+
+1. Add a generation to `origin_verify_accepted`, e.g. `["1", "2"]`. CloudFront accepts both; Cloudflare still sends the old one. Wait a few minutes for the function to reach every edge.
+2. Set `origin_verify_sent = "2"`.
+3. Remove the old generation.
+
+The rule `depends_on` the function, so an apply publishes the function before it changes what Cloudflare sends, and the precondition below stops the change if that publish didn't take.
+
+**Recovery:** the AWS provider reads the function code from its DEVELOPMENT stage, so a publish that failed would go unnoticed. A precondition on the Cloudflare rule compares the code CloudFront runs (the LIVE stage) with the configured code, and fails every plan until they match. Publish it from a laptop with admin credentials, then re-run the plan:
+
+```bash
+ETAG=$(aws cloudfront describe-function --name portfolio-viewer-request --stage DEVELOPMENT --query ETag --output text)
+aws cloudfront publish-function --name portfolio-viewer-request --if-match "$ETAG"
+```
+
+**Removing the lock:** switch to report mode first, then remove the rule and the check. Doing both at once can block visitors for a few minutes, while some edges still run the old function.
+
 ## Project grouping
 
 Everything that belongs to the site is tagged `Project=portfolio`.
@@ -48,7 +80,7 @@ env -u CLOUDFLARE_API_TOKEN cf tags account-resources update --zone <zone-id> --
 ## Laptop commands
 
 ```bash
-export CLOUDFLARE_API_TOKEN=...                 # this zone only: Zone Read + DNS Read to plan, DNS Edit as well to apply
+export CLOUDFLARE_API_TOKEN=...                 # this zone only: Zone, DNS and Transform Rules Read to plan; DNS and Transform Rules Edit as well to apply
 
 cd infra
 tofu init -backend-config=backend.hcl            # once per clone
@@ -79,8 +111,8 @@ Everything below runs from a laptop with admin credentials; CI cannot bootstrap 
 | --- | --- | --- |
 | Repo variable | `AWS_DEPLOY_ROLE_ARN`, `S3_BUCKET`, `CLOUDFRONT_DISTRIBUTION_ID`, `SITE_URL` | deploy job inputs |
 | Repo variable | `AWS_TOFU_PLAN_ROLE_ARN` | `tofu output tofu_plan_role_arn` (in `infra/iam`) |
-| Repo secret | `CLOUDFLARE_API_TOKEN_PLAN` | Cloudflare token: Zone Read + DNS Read on this zone |
+| Repo secret | `CLOUDFLARE_API_TOKEN_PLAN` | Cloudflare token: Zone Read + DNS Read + Transform Rules Read on this zone |
 | `infra` environment variable | `AWS_TOFU_APPLY_ROLE_ARN` | `tofu output tofu_apply_role_arn` (in `infra/iam`) |
-| `infra` environment secret | `CLOUDFLARE_API_TOKEN` | Cloudflare token: Zone Read + DNS Write on this zone |
+| `infra` environment secret | `CLOUDFLARE_API_TOKEN` | Cloudflare token: Zone Read + DNS Write + Transform Rules Edit on this zone |
 
 To rotate a Cloudflare token, create a new one with the same scope, update the secret (`gh secret set CLOUDFLARE_API_TOKEN_PLAN` for the repo one, `gh secret set CLOUDFLARE_API_TOKEN --env infra` for the apply one), then delete the old token.
