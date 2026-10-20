@@ -1,5 +1,6 @@
+import { ArrowIcon } from './Icons';
 import { Diagram } from './diagram/Diagram';
-import { torquePath } from './diagram/torquePath';
+import { siteFlow } from './diagram/siteFlow';
 import { mailto } from '../data/site';
 
 /** 600 wide; 0.58 fits a 390 px phone and keeps the text near 9 px. */
@@ -26,8 +27,14 @@ export function Hero() {
         </div>
       </div>
       <figure className="glass-panel hero-figure enter d3">
-        <Diagram data={torquePath} minScale={HERO_DIAGRAM_MIN_SCALE} />
-        <figcaption>Torque path of the RS50 force-feedback bridge, Wine bottle to wheel.</figcaption>
+        <Diagram data={siteFlow} minScale={HERO_DIAGRAM_MIN_SCALE} />
+        <figcaption>
+          How this site works: a merged pull request publishes to a private S3 bucket, and CloudFront serves it to you
+          through Cloudflare.
+          <a className="figure-link" href="/how-it-works/">
+            See every service <ArrowIcon />
+          </a>
+        </figcaption>
       </figure>
     </section>
   );
