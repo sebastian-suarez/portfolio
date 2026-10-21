@@ -1,5 +1,5 @@
-site_bucket     = "site-sebastiansuarez-dev"
-state_bucket    = "tfstate-042420645565-us-east-1"
+site_bucket     = "site-sebastiansuarez-dev-786638967614"
+state_bucket    = "tfstate-786638967614-us-east-1"
 github_owner    = "sebastian-suarez"
 github_owner_id = "261091557"
 github_repo     = "portfolio"
