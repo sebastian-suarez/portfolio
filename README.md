@@ -11,7 +11,8 @@ flowchart LR
     cloudfront[CloudFront and its function] -->|origin access control| s3[(Private S3 bucket)]
   end
   cloudflare -->|adds the origin-lock header| cloudfront
-  actions[GitHub Actions] -.->|"deploy: sync files, invalidate (OIDC)"| s3
+  actions[GitHub Actions] -.->|"deploy: sync files (OIDC)"| s3
+  actions -.->|"deploy: invalidate cache (OIDC)"| cloudfront
   actions -.->|"OpenTofu (OIDC)"| aws
   actions -.->|"OpenTofu (API token)"| cloudflare
 ```
