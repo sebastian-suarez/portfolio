@@ -56,9 +56,9 @@ curl -sI https://sebastiansuarez.dev/ | head -1                                 
 2. Set `origin_verify_sent = "2"`. After the apply, wait a few minutes before step 3.
 3. Remove the old generation.
 
-The rule `depends_on` the function, so an apply publishes the function before it changes what Cloudflare sends, and the precondition below stops the change if that publish didn't take.
+The rule `depends_on` the function and the check below, so an apply publishes the function before it changes what Cloudflare sends, and stops before the change if that publish didn't take.
 
-**Recovery:** the AWS provider reads the function code from its DEVELOPMENT stage, so a publish that failed would go unnoticed. A precondition on the Cloudflare rule compares the code CloudFront runs (the LIVE stage) with the configured code, and fails every plan until they match. It reads LIVE when planning, and again during the apply only when the function changes too; CI plans and applies seconds apart. Publish it from a laptop with admin credentials, then re-run the plan:
+**Recovery:** the AWS provider reads the function code from its DEVELOPMENT stage, so a publish that failed would go unnoticed. A postcondition on the LIVE-stage read (`cloudfront.tf`) compares the code CloudFront runs with the configured code, and fails every plan until they match, whether or not this copy manages the rule. It reads LIVE when planning, and again during the apply only when the function changes too; CI plans and applies seconds apart. Publish it from a laptop with admin credentials, then re-run the plan:
 
 ```bash
 ETAG=$(aws cloudfront describe-function --name portfolio-viewer-request --stage DEVELOPMENT --query ETag --output text)
@@ -66,6 +66,22 @@ aws cloudfront publish-function --name portfolio-viewer-request --if-match "$ETA
 ```
 
 **Removing the lock:** switch to report mode first, then remove the rule and the check. Doing both at once can block visitors for a few minutes, while some edges still run the old function.
+
+## Moving the site to a new distribution
+
+Three inputs in `variables.tf` let a second copy of these stacks, in another AWS account (a new bucket, distribution and state), take over from the first, with the origin lock on throughout. The domain itself moves with a short outage: CloudFront moves an apex alias to another account only from a disabled distribution, unless AWS Support moves it. In the same account the OAC, function and ACM validation names would collide. Outside a move the inputs stay at their defaults.
+
+- `attach_domain = false`: the new distribution starts without aliases, keeping its certificate, and the new copy doesn't manage the apex and www records.
+- `manage_origin_lock_rule = false`: the new copy doesn't manage the request header rule, so the old copy's rule keeps sending its secret.
+- `origin_verify_extra_sha256`: the digest of the secret that rule sends (it is in the old function's code), so the new function accepts those requests.
+
+The new copy starts with all three set. Then, each step applied before the next. Don't apply the old copy between steps 1 and 3: with the defaults it would put the records back, and with `attach_domain = false` it would remove the aliases before they move.
+
+1. Records: `tofu state rm` the apex and www records in the old copy.
+2. Domain: add TXT records `_.<domain>` and `_www.<domain>` (DNS-only) holding the new distribution's `*.cloudfront.net` name, and check that they resolve. Then disable the old distribution and move both aliases with `aws cloudfront update-domain-association` from the new account. The outage runs from the disable until the records point at the new distribution.
+3. New copy: `attach_domain = true` plus `import` blocks for the two records. The apply points them at the new distribution. The old copy can take `attach_domain = false` from now on.
+4. Rule, later: `tofu state rm` it in the old copy, then set its `manage_origin_lock_rule = false`. In the new copy, `manage_origin_lock_rule = true` plus an `import` block; that apply switches Cloudflare to the new copy's secret.
+5. A few minutes after that, empty `origin_verify_extra_sha256` in its own apply, as in rotation step 3: the new function must accept the old secret until Cloudflare has stopped sending it.
 
 ## Project grouping
 
@@ -121,7 +137,7 @@ To stop CI applying IAM without an incident: remove the tofu-iam role from `infr
 
 Everything below runs from a laptop with admin credentials; CI cannot bootstrap itself.
 
-0. Create the state bucket (versioning on, SSE-S3, public access blocked), e.g. `tfstate-<account-id>-us-east-1`, tag it `Project=portfolio`, `Repo=<owner>/<repo>` and `ManagedBy=manual`, and put its name in `backend.hcl` (`bucket = "..."`).
+0. Create the state bucket (versioning on, SSE-S3, public access blocked), e.g. `tfstate-<account-id>-us-east-1`, tag it `Project=portfolio`, `Repo=<owner>/<repo>` and `ManagedBy=manual`, and put its name in `backend.hcl` (`bucket = "..."`). Choose a site bucket name too (globally unique) and set it as `site_bucket` in the three `terraform.tfvars`.
 1. Create the `production`, `infra` and `infra-iam` GitHub environments, each restricted to `main` (`infra-iam` without admin bypass), before any role trusts them: a job that names a missing environment creates it with no protection.
 2. Apply `infra/bootstrap/` (OIDC provider, boundary, tofu-iam role).
 3. Apply `infra/` (site stack).
