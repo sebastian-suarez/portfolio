@@ -29,8 +29,10 @@ resource "cloudflare_dns_record" "acm_validation" {
 
 # Site records: apex + www -> CloudFront, proxied (orange cloud).
 # Cloudflare flattens the apex CNAME automatically. Requires SSL/TLS mode Full (strict)
-# on the zone, which the hardening guide already set.
+# on the zone, which the hardening guide already set. Not managed here while attach_domain = false.
 resource "cloudflare_dns_record" "apex" {
+  count = var.attach_domain ? 1 : 0
+
   zone_id = local.zone_id
   name    = var.domain
   type    = "CNAME"
@@ -41,6 +43,8 @@ resource "cloudflare_dns_record" "apex" {
 }
 
 resource "cloudflare_dns_record" "www" {
+  count = var.attach_domain ? 1 : 0
+
   zone_id = local.zone_id
   name    = "www.${var.domain}"
   type    = "CNAME"
@@ -48,4 +52,15 @@ resource "cloudflare_dns_record" "www" {
   ttl     = 1
   proxied = true
   comment = "Portfolio www -> CloudFront; CloudFront redirects to apex (managed by OpenTofu)"
+}
+
+# The two records were single resources before attach_domain existed.
+moved {
+  from = cloudflare_dns_record.apex
+  to   = cloudflare_dns_record.apex[0]
+}
+
+moved {
+  from = cloudflare_dns_record.www
+  to   = cloudflare_dns_record.www[0]
 }

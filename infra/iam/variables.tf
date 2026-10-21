@@ -10,13 +10,13 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
-variable "domain" {
-  description = "Apex domain of the site (same value as ../terraform.tfvars); the site bucket name derives from it."
+variable "site_bucket" {
+  description = "The site bucket the deploy and apply roles may use (same value as ../terraform.tfvars)."
   type        = string
 
   validation {
-    condition     = can(regex("^[a-z0-9.-]+\\.[a-z]{2,}$", var.domain)) && !startswith(var.domain, "www.")
-    error_message = "Use the bare apex domain in lowercase, without www. or a trailing dot."
+    condition     = can(regex("^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$", var.site_bucket)) && !strcontains(var.site_bucket, "..")
+    error_message = "Use a valid S3 bucket name: 3-63 lowercase letters, digits, dots and hyphens, starting and ending with a letter or digit."
   }
 }
 

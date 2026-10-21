@@ -24,8 +24,11 @@ resource "random_password" "origin_verify" {
 }
 
 # The zone's entry point for Request Header Transform Rules. OpenTofu owns the whole phase: a
-# request header rule added in the dashboard is removed by the next apply.
+# request header rule added in the dashboard is removed by the next apply. Not managed here while
+# manage_origin_lock_rule = false (another stack's rule sends the header then).
 resource "cloudflare_ruleset" "request_headers" {
+  count = var.manage_origin_lock_rule ? 1 : 0
+
   zone_id     = local.zone_id
   name        = "${var.project} request headers"
   description = "Request Header Transform Rules (managed by OpenTofu)"
@@ -53,18 +56,17 @@ resource "cloudflare_ruleset" "request_headers" {
     }
   }])
 
-  # Publish the function first: if publishing fails, the apply stops before Cloudflare changes
-  # what it sends, so Cloudflare keeps sending a secret the live function accepts.
-  depends_on = [aws_cloudfront_function.viewer_request]
+  # Publish the function first, then pass the LIVE-code check (cloudfront.tf): if publishing fails,
+  # the apply stops before Cloudflare changes what it sends, so Cloudflare keeps sending a secret
+  # the live function accepts. CI plans and applies seconds apart in one job, so Cloudflare doesn't
+  # switch secrets while CloudFront runs stale code. The check can't see distribution deployment:
+  # edges pick up a publish only once the distribution is Deployed again (README.md, Origin lock,
+  # Rotation).
+  depends_on = [aws_cloudfront_function.viewer_request, data.aws_cloudfront_function.viewer_request_live]
+}
 
-  lifecycle {
-    # Checked when planning and, if the function changes in the same apply, again after it is
-    # published. CI plans and applies seconds apart in one job, so Cloudflare doesn't switch
-    # secrets while CloudFront runs stale code. It can't see distribution deployment: edges pick
-    # up a publish only once the distribution is Deployed again (README.md, Origin lock, Rotation).
-    precondition {
-      condition     = data.aws_cloudfront_function.viewer_request_live.code == aws_cloudfront_function.viewer_request.code
-      error_message = "The CloudFront Function's LIVE stage does not run the configured code (a failed publish?). Publish it as infra/README.md (Origin lock, Recovery) shows, then re-run."
-    }
-  }
+# A single resource before manage_origin_lock_rule existed.
+moved {
+  from = cloudflare_ruleset.request_headers
+  to   = cloudflare_ruleset.request_headers[0]
 }

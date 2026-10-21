@@ -9,8 +9,8 @@ data "aws_caller_identity" "current" {}
 locals {
   account_id = data.aws_caller_identity.current.account_id
 
-  # Same naming rules as ../s3.tf and ../iam/.
-  site_bucket_arn  = "arn:aws:s3:::site-${replace(var.domain, ".", "-")}"
+  # Same names and keys as ../ and ../iam/.
+  site_bucket_arn  = "arn:aws:s3:::${var.site_bucket}"
   state_bucket_arn = "arn:aws:s3:::${var.state_bucket}"
   site_state_key   = "portfolio/terraform.tfstate"
   iam_state_key    = "portfolio/iam.tfstate"
