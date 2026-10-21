@@ -34,12 +34,20 @@ resource "aws_cloudfront_function" "viewer_request" {
 }
 
 # The code CloudFront actually runs. The resource above reads its code from the DEVELOPMENT stage,
-# so a failed publish would leave LIVE on old code while plans show no changes; origin-lock.tf
-# checks this against the configured code. (ETags can't be compared: each stage numbers its own.)
-# Read after the function is applied, since it refers to it.
+# so a failed publish would leave LIVE on old code while plans show no changes; the postcondition
+# catches that, whether or not this stack manages the Cloudflare rule. (ETags can't be compared:
+# each stage numbers its own.) Read when planning and, if the function changes in the same apply,
+# again after it is published, since it refers to the function.
 data "aws_cloudfront_function" "viewer_request_live" {
   name  = aws_cloudfront_function.viewer_request.name
   stage = "LIVE"
+
+  lifecycle {
+    postcondition {
+      condition     = self.code == aws_cloudfront_function.viewer_request.code
+      error_message = "The CloudFront Function's LIVE stage does not run the configured code (a failed publish?). Publish it as infra/README.md (Origin lock, Recovery) shows, then re-run."
+    }
+  }
 }
 
 resource "aws_cloudfront_distribution" "site" {

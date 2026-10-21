@@ -56,9 +56,9 @@ curl -sI https://sebastiansuarez.dev/ | head -1                                 
 2. Set `origin_verify_sent = "2"`. After the apply, wait a few minutes before step 3.
 3. Remove the old generation.
 
-The rule `depends_on` the function, so an apply publishes the function before it changes what Cloudflare sends, and the precondition below stops the change if that publish didn't take.
+The rule `depends_on` the function and the check below, so an apply publishes the function before it changes what Cloudflare sends, and stops before the change if that publish didn't take.
 
-**Recovery:** the AWS provider reads the function code from its DEVELOPMENT stage, so a publish that failed would go unnoticed. A precondition on the Cloudflare rule compares the code CloudFront runs (the LIVE stage) with the configured code, and fails every plan until they match. It reads LIVE when planning, and again during the apply only when the function changes too; CI plans and applies seconds apart. Publish it from a laptop with admin credentials, then re-run the plan:
+**Recovery:** the AWS provider reads the function code from its DEVELOPMENT stage, so a publish that failed would go unnoticed. A postcondition on the LIVE-stage read (`cloudfront.tf`) compares the code CloudFront runs with the configured code, and fails every plan until they match, whether or not this copy manages the rule. It reads LIVE when planning, and again during the apply only when the function changes too; CI plans and applies seconds apart. Publish it from a laptop with admin credentials, then re-run the plan:
 
 ```bash
 ETAG=$(aws cloudfront describe-function --name portfolio-viewer-request --stage DEVELOPMENT --query ETag --output text)
@@ -69,13 +69,19 @@ aws cloudfront publish-function --name portfolio-viewer-request --if-match "$ETA
 
 ## Moving the site to a new distribution
 
-Three inputs in `variables.tf` let a second copy of these stacks (a new bucket, distribution and state) take over from the first without downtime. Outside a move they stay at their defaults.
+Three inputs in `variables.tf` let a second copy of these stacks, in another AWS account (a new bucket, distribution and state), take over from the first without downtime. In the same account the OAC, function and ACM validation names would collide. Outside a move the inputs stay at their defaults.
 
 - `attach_domain = false`: the new distribution starts without aliases, keeping its certificate, and the new copy doesn't manage the apex and www records.
 - `manage_origin_lock_rule = false`: the new copy doesn't manage the request header rule, so the old copy's rule keeps sending its secret.
 - `origin_verify_extra_sha256`: the digest of the secret that rule sends (it is in the old function's code), so the new function accepts those requests.
 
-The domain then moves with CloudFront's alias move, the records and later the rule change hands with `tofu state rm` in the old copy and `import` in the new, and the three inputs go back to their defaults.
+The new copy starts with all three set. Then, each step applied before the next:
+
+1. Records: `tofu state rm` the apex and www records in the old copy. Only then set its `attach_domain = false`; setting it first would delete the live records.
+2. Domain: add TXT records `_<domain>` and `_www.<domain>` (DNS-only) holding the new distribution's `*.cloudfront.net` name, disable the old distribution, and move both aliases with `aws cloudfront update-domain-association` from the new account.
+3. New copy: `attach_domain = true` plus `import` blocks for the two records. The apply points them at the new distribution.
+4. Rule, later: `tofu state rm` it in the old copy (then its `manage_origin_lock_rule = false`), and `manage_origin_lock_rule = true` plus an `import` block in the new. That apply switches Cloudflare to the new copy's secret.
+5. A few minutes after that, empty `origin_verify_extra_sha256` in its own apply, as in rotation step 3: the new function must accept the old secret until Cloudflare has stopped sending it.
 
 ## Project grouping
 
