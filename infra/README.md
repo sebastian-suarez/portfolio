@@ -67,6 +67,16 @@ aws cloudfront publish-function --name portfolio-viewer-request --if-match "$ETA
 
 **Removing the lock:** switch to report mode first, then remove the rule and the check. Doing both at once can block visitors for a few minutes, while some edges still run the old function.
 
+## Moving the site to a new distribution
+
+Three inputs in `variables.tf` let a second copy of these stacks (a new bucket, distribution and state) take over from the first without downtime. Outside a move they stay at their defaults.
+
+- `attach_domain = false`: the new distribution starts without aliases, keeping its certificate, and the new copy doesn't manage the apex and www records.
+- `manage_origin_lock_rule = false`: the new copy doesn't manage the request header rule, so the old copy's rule keeps sending its secret.
+- `origin_verify_extra_sha256`: the digest of the secret that rule sends (it is in the old function's code), so the new function accepts those requests.
+
+The domain then moves with CloudFront's alias move, the records and later the rule change hands with `tofu state rm` in the old copy and `import` in the new, and the three inputs go back to their defaults.
+
 ## Project grouping
 
 Everything that belongs to the site is tagged `Project=portfolio`.
@@ -121,7 +131,7 @@ To stop CI applying IAM without an incident: remove the tofu-iam role from `infr
 
 Everything below runs from a laptop with admin credentials; CI cannot bootstrap itself.
 
-0. Create the state bucket (versioning on, SSE-S3, public access blocked), e.g. `tfstate-<account-id>-us-east-1`, tag it `Project=portfolio`, `Repo=<owner>/<repo>` and `ManagedBy=manual`, and put its name in `backend.hcl` (`bucket = "..."`).
+0. Create the state bucket (versioning on, SSE-S3, public access blocked), e.g. `tfstate-<account-id>-us-east-1`, tag it `Project=portfolio`, `Repo=<owner>/<repo>` and `ManagedBy=manual`, and put its name in `backend.hcl` (`bucket = "..."`). Choose a site bucket name too (globally unique) and set it as `site_bucket` in the three `terraform.tfvars`.
 1. Create the `production`, `infra` and `infra-iam` GitHub environments, each restricted to `main` (`infra-iam` without admin bypass), before any role trusts them: a job that names a missing environment creates it with no protection.
 2. Apply `infra/bootstrap/` (OIDC provider, boundary, tofu-iam role).
 3. Apply `infra/` (site stack).

@@ -1,4 +1,4 @@
-domain          = "sebastiansuarez.dev"
+site_bucket     = "site-sebastiansuarez-dev"
 state_bucket    = "tfstate-042420645565-us-east-1"
 github_owner    = "sebastian-suarez"
 github_owner_id = "261091557"

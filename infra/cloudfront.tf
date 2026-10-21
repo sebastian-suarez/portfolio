@@ -22,10 +22,14 @@ resource "aws_cloudfront_function" "viewer_request" {
   publish = true
 
   # The code gets only SHA-256 digests of the secrets (origin-lock.tf), so the plan can show it.
+  # Extra digests come after this stack's own; with none, the code is unchanged.
   code = templatefile("${path.module}/functions/viewer-request.js", {
     verify_header = local.origin_verify_header
-    verify_sha256 = [for g in sort(local.origin_verify_accepted) : nonsensitive(sha256(random_password.origin_verify[g].result))]
-    enforce       = var.origin_lock_enforce
+    verify_sha256 = concat(
+      [for g in sort(local.origin_verify_accepted) : nonsensitive(sha256(random_password.origin_verify[g].result))],
+      var.origin_verify_extra_sha256,
+    )
+    enforce = var.origin_lock_enforce
   })
 }
 
@@ -45,16 +49,18 @@ resource "aws_cloudfront_distribution" "site" {
   default_root_object = "index.html"
   http_version        = "http2and3"
   price_class         = "PriceClass_All" # free tier covers 1 TB/month; keeps South-American edges for Colombian visitors
-  aliases             = [var.domain, "www.${var.domain}"]
+  # Without aliases (attach_domain = false) the certificate below stays attached, so the
+  # domains can be moved here later.
+  aliases = var.attach_domain ? [var.domain, "www.${var.domain}"] : []
 
   origin {
     domain_name              = aws_s3_bucket.site.bucket_regional_domain_name
-    origin_id                = "s3-${local.bucket_name}"
+    origin_id                = "s3-${var.site_bucket}"
     origin_access_control_id = aws_cloudfront_origin_access_control.site.id
   }
 
   default_cache_behavior {
-    target_origin_id           = "s3-${local.bucket_name}"
+    target_origin_id           = "s3-${var.site_bucket}"
     viewer_protocol_policy     = "redirect-to-https"
     allowed_methods            = ["GET", "HEAD", "OPTIONS"]
     cached_methods             = ["GET", "HEAD"]
