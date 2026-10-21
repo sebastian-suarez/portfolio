@@ -10,7 +10,7 @@ export const awsOrg: DiagramData = {
   height: 300,
   label: 'AWS Organization: guardrails at the root apply to the site account, not to the management account',
   description:
-    "Service control policies at the organization root keep regional API calls and new S3 buckets in us-east-1, stop member accounts from switching off the trail, Config, GuardDuty or Security Hub, and stop them leaving the organization. A resource control policy lets only the organization's identities and AWS services reach S3 in member accounts. Both apply to the portfolio account, which holds the site, its OpenTofu state and its CI roles and has no root credentials. AWS doesn't apply them to the management account, which holds Organizations, billing, Identity Center and the organization trail, and whose root user signs in with a hardware key.",
+    "Service control policies at the organization root keep regional API calls and new S3 buckets in us-east-1, stop member accounts from switching off their CloudTrail trails, Config, GuardDuty or Security Hub, and stop them leaving the organization. A resource control policy lets only the organization's identities and AWS services reach S3 in member accounts. Both apply to the portfolio account, which holds the site, its OpenTofu state and its CI roles and has no root credentials. AWS doesn't apply them to the management account, which holds Organizations, billing, Identity Center and the organization trail, and whose root user signs in with a hardware key.",
   regions: [{ x: 0, y: 12, w: 300, h: 276, radius: 16, tone: 'panel' }],
   nodes: [
     {
