@@ -24,11 +24,8 @@ resource "random_password" "origin_verify" {
 }
 
 # The zone's entry point for Request Header Transform Rules. OpenTofu owns the whole phase: a
-# request header rule added in the dashboard is removed by the next apply. Not managed here while
-# manage_origin_lock_rule = false (another stack's rule sends the header then).
+# request header rule added in the dashboard is removed by the next apply.
 resource "cloudflare_ruleset" "request_headers" {
-  count = var.manage_origin_lock_rule ? 1 : 0
-
   zone_id     = local.zone_id
   name        = "${var.project} request headers"
   description = "Request Header Transform Rules (managed by OpenTofu)"
@@ -65,8 +62,8 @@ resource "cloudflare_ruleset" "request_headers" {
   depends_on = [aws_cloudfront_function.viewer_request, data.aws_cloudfront_function.viewer_request_live]
 }
 
-# A single resource before manage_origin_lock_rule existed.
+# Indexed while the account move's handover switches existed.
 moved {
-  from = cloudflare_ruleset.request_headers
-  to   = cloudflare_ruleset.request_headers[0]
+  from = cloudflare_ruleset.request_headers[0]
+  to   = cloudflare_ruleset.request_headers
 }
