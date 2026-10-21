@@ -1,5 +1,5 @@
 /** When the claims on /how-it-works/ were last checked against the live AWS, Cloudflare and GitHub setup. */
-export const setupCheckedOn = { iso: '2026-10-20', label: '20 October 2026' } as const;
+export const setupCheckedOn = { iso: '2026-10-21', label: '21 October 2026' } as const;
 
 export const repoUrl = 'https://github.com/sebastian-suarez/portfolio';
 
@@ -58,7 +58,8 @@ export const services: ServiceStage[] = [
     id: 'access',
     title: 'Access',
     items: [
-      { name: 'IAM Identity Center', role: 'sign-in for people' },
+      { name: 'AWS Organizations', role: 'a member account for the site; SCPs and an RCP as guardrails' },
+      { name: 'IAM Identity Center', role: 'sign-in for people, in both accounts' },
       { name: 'IAM OIDC provider', role: 'GitHub Actions without stored keys' },
       { name: 'IAM roles', role: 'deploy, plan, apply and IAM apply, one per job context' },
       { name: 'Permissions boundary', role: 'the ceiling for every role CI manages' },
