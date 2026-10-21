@@ -93,3 +93,23 @@ Rejected:
 Implementation review, round 2 (after merging main; one adversarial review with the task and one independent review without it, 20 Oct 2026), two findings, both accepted:
 - Both: the note on what merged during the work described the state of another change in this public plan. It now names the PRs only.
 - "Caps every CI role" overstated the boundary: the role that applies IAM has none; its own policy limits it instead (`infra/bootstrap/tofu-iam.tf`). The diagram, the card and the page lead now say the boundary caps the roles CI manages.
+
+## Update, 21 Oct 2026
+
+The site's AWS side now runs in a member account (`portfolio`, in a Workloads organizational unit) of the AWS Organization, under guardrails attached at the organization root. The page follows:
+
+- "The AWS accounts" replaces "The AWS account": a new `awsOrg` diagram (organization root, its SCPs and RCP, the management account they don't apply to, and the site account they do), and the existing diagram with the root user's hardware key and GuardDuty in each account.
+- Guardrails are described as the policies define them: regional API calls and new S3 buckets in us-east-1, no stopping or deleting CloudTrail trails in member accounts, the Config recorder, GuardDuty or Security Hub, no leaving the organization or closing the account, and S3 in member accounts reachable only by the organization's identities and AWS services. Neither applies to the management account, and SCPs don't limit service-linked roles.
+- Root users: a hardware security key on the management account's root user; no root password or access keys in the site's account.
+- Security services per account in us-east-1; safe defaults now include blocked public sharing of Systems Manager documents and no default VPCs; budget alerts at 50%, 80% and 100% and on forecast, covering both accounts.
+- Serving: CloudFront refuses HTTPS requests without the secret header Cloudflare adds. Cloudflare's edge lists Bot Fight Mode. The CI apply token edits DNS and the request header rule.
+- The services list adds AWS Organizations; the card blurb mentions the account; `setupCheckedOn` is 21 October 2026.
+
+Every claim on the page, new or kept, was re-checked against the live setup on 21 Oct 2026.
+
+Plan review (adversarial, with the task), ten findings: nine accepted (exact guardrail scope instead of "stops anyone"; regional calls rather than "work" in us-east-1; the RCP's scope; alarm and subscription wiring for both accounts checked; per-account and per-Region scope stated; current root-credential evidence for the site account; the origin lock described by its mechanism; AWS resources and state, not "everything", in the member account; stale token and "made by hand" wording fixed). One partly accepted: the date change re-certifies the whole page, so retained claims were re-checked too.
+
+Implementation review, round 1 (21 Oct 2026; one adversarial review with the task and one independent review without it):
+- Accepted: the card still said "CI roles capped by a boundary"; the role that applies IAM has none, so it now says the roles CI manages. The guardrail sentence credited the SCPs with protecting the organization trail, which lives in the management account and which member accounts can't change anyway; it now names CloudTrail trails in member accounts and says where the organization trail lives and that an alarm watches it. The infrastructure lead no longer reads as if the DNS records lived in the AWS account. Cloudflare's edge bullet now names the request header rule.
+
+Implementation review, round 2 (21 Oct 2026): the review with the task approved. The independent review's accepted findings: the guardrail sentence now says the site runs in a member account because the policies don't apply to the management account, with the service-linked-role caveat separate; the second AWS diagram's description says whose root user has the hardware key and how root tasks run in the site's account; this section's summary names CloudTrail trails in member accounts. Rejected: rewording the CI apply token's description, which states its actual permissions.

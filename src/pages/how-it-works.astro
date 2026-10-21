@@ -8,6 +8,7 @@ import { pipeline } from '../components/diagram/pipeline';
 import { requestPath } from '../components/diagram/requestPath';
 import { iacSplit } from '../components/diagram/iacSplit';
 import { awsAccount } from '../components/diagram/awsAccount';
+import { awsOrg } from '../components/diagram/awsOrg';
 import { cloudflareZone } from '../components/diagram/cloudflareZone';
 import { repoUrl, services, setupCheckedOn } from '../data/howItWorks';
 import { site } from '../data/site';
@@ -21,7 +22,7 @@ const toc = [
   { href: '#pipeline', label: 'From an edit to production' },
   { href: '#serving', label: 'Serving a request' },
   { href: '#iac', label: 'Infrastructure as code' },
-  { href: '#aws', label: 'The AWS account' },
+  { href: '#aws', label: 'The AWS accounts' },
   { href: '#cloudflare', label: 'The Cloudflare account' },
   { href: '#services', label: 'Every service' },
 ];
@@ -29,7 +30,7 @@ const toc = [
 
 <Base
   title={`How this site works — ${site.name}`}
-  description="How sebastiansuarez.dev is built, shipped and served: Astro, GitHub Actions, OpenTofu, AWS and Cloudflare, and how both cloud accounts are secured."
+  description="How sebastiansuarez.dev is built, shipped and served: Astro, GitHub Actions, OpenTofu, AWS and Cloudflare, and how the cloud accounts behind it are secured."
 >
   <a class="skip-link" href="#main">Skip to content</a>
   <div id="top" class="page">
@@ -42,7 +43,7 @@ const toc = [
           <h1 id="hiw-title" class="enter">How this site works</h1>
           <p class="hiw-lede enter d1">
             A static site on AWS behind Cloudflare, shipped by GitHub Actions and described in OpenTofu. Here is every
-            service, from a local edit to your screen, and how the two cloud accounts behind it are secured.
+            service, from a local edit to your screen, and how the AWS and Cloudflare accounts behind it are secured.
           </p>
           <p class="hiw-asof enter d1">
             Checked against the live setup on <time datetime={setupCheckedOn.iso}>{setupCheckedOn.label}</time>. The
@@ -129,8 +130,8 @@ const toc = [
           <ul class="hiw-points">
             <li>
               <strong>Cloudflare</strong> serves the domain's DNS, signed with DNSSEC. The apex and www are proxied, so you
-              meet Cloudflare's edge: TLS 1.3, HTTP/3, the browser integrity check, email obfuscation and AI crawler
-              blocking.
+              meet Cloudflare's edge: TLS 1.3, HTTP/3, the browser integrity check, Bot Fight Mode, email obfuscation and
+              AI crawler blocking.
             </li>
             <li>
               <strong>Full (strict) TLS.</strong> Cloudflare only connects to CloudFront when CloudFront presents a valid
@@ -141,8 +142,10 @@ const toc = [
               and renewed automatically. It redirects plain HTTP to HTTPS.
             </li>
             <li>
-              <strong>A CloudFront Function</strong> runs on every request. It redirects www to the apex and maps folder
-              paths like <code>/resume</code> to <code>/resume/index.html</code>, because S3 has no index documents.
+              <strong>A CloudFront Function</strong> runs on every request. It refuses HTTPS requests that lack the secret
+              header Cloudflare adds, so the site can't be reached around Cloudflare's edge. It redirects www to the apex
+              and maps folder paths like <code>/resume</code> to <code>/resume/index.html</code>, because S3 has no index
+              documents.
             </li>
             <li>
               <strong>Managed policies</strong> set the caching and add security headers, including a one-year HSTS
@@ -162,8 +165,9 @@ const toc = [
           <div class="hiw-head">
             <h2 id="iac-title">Infrastructure as code</h2>
             <p>
-              The site's AWS resources and DNS records live in OpenTofu, in three stacks. CI applies two of them, and every
-              role it manages stays under a ceiling only a person can move.
+              The site's AWS resources and DNS records live in OpenTofu, in three stacks whose AWS side and state sit in
+              the site's own AWS account. CI applies two of them, and every role it manages stays under a ceiling only a
+              person can move.
             </p>
           </div>
           <figure class="hiw-figure-inline">
@@ -173,8 +177,8 @@ const toc = [
           <ul class="hiw-points">
             <li>
               <strong>Three stacks, one state bucket.</strong> All three keep their state in one versioned, encrypted S3
-              bucket, locked with S3's native lock files. That bucket is the one resource made by hand, before anything
-              else.
+              bucket in the site's account, locked with S3's native lock files. That bucket is the only part of the stacks
+              made by hand, before anything else.
             </li>
             <li>
               <strong>Site stack.</strong> The bucket, the distribution and its function, the certificate and the
@@ -202,7 +206,7 @@ const toc = [
             </li>
             <li>
               <strong>Cloudflare tokens.</strong> Two API tokens limited to this zone: a read-only one for plans, and one
-              that can edit DNS for applies, held in the <code>infra</code> environment.
+              that can edit DNS and the request header rule for applies, held in the <code>infra</code> environment.
             </li>
             <li>
               <strong>Tags.</strong> Resources carry <code>Project=portfolio</code> in AWS and in Cloudflare, so each
@@ -215,40 +219,68 @@ const toc = [
       <section id="aws" class="hiw-section wrap" aria-labelledby="aws-title">
         <div class="hiw-panel glass-panel">
           <div class="hiw-head">
-            <h2 id="aws-title">The AWS account</h2>
+            <h2 id="aws-title">The AWS accounts</h2>
             <p>
-              The account was hardened before the site existed: few ways in, all of them logged, and alerts that land in an
-              inbox.
+              An AWS Organization with two accounts: one for identity, billing and audit, and one that runs only this
+              site, under the organization's guardrails. Few ways in, all of them logged, and alerts that land in an inbox.
             </p>
           </div>
+          <figure class="hiw-figure-inline">
+            <Diagram data={awsOrg} minScale={DIAGRAM_MIN_SCALE} />
+            <figcaption>Guardrails at the root bind the site's account; AWS never applies them to the management account.</figcaption>
+          </figure>
+          <ul class="hiw-points">
+            <li>
+              <strong>Two accounts.</strong> The management account holds AWS Organizations, billing, IAM Identity Center
+              and the organization trail. Everything the site runs on in AWS, from its bucket and distribution to its CI
+              roles and OpenTofu state, lives in a member account, <code>portfolio</code>, in a Workloads organizational
+              unit.
+            </li>
+            <li>
+              <strong>Guardrails.</strong> Service control policies at the organization root limit member accounts:
+              regional API calls only in us-east-1 (global services excepted), new S3 buckets only in us-east-1, no
+              stopping or deleting CloudTrail trails, the Config recorder, GuardDuty or Security Hub, and no leaving the
+              organization or closing the account. The organization trail itself lives in the management account, where
+              member accounts can't change it, and an alarm watches it for changes. A resource control policy lets only the organization's identities
+              and AWS services reach S3 in member accounts. Neither applies to the management account, which is why the site
+              runs in a member account. SCPs also don't limit AWS's own service-linked roles.
+            </li>
+            <li>
+              <strong>Root users.</strong> The management account's root user signs in with a hardware security key and
+              has no access keys, and an alarm fires if it is ever used. The site's account has no root password or access
+              keys at all; the few tasks that need root run as short, task-scoped sessions started from the management
+              account.
+            </li>
+          </ul>
           <figure class="hiw-figure-inline">
             <Diagram data={awsAccount} minScale={DIAGRAM_MIN_SCALE} />
             <figcaption>Who can act, what watches, and where the alerts go.</figcaption>
           </figure>
           <ul class="hiw-points">
-            <li><strong>Root user.</strong> MFA, no access keys, and an alarm if it is ever used.</li>
             <li>
-              <strong>People.</strong> No IAM users. People sign in through IAM Identity Center, with four-hour sessions.
+              <strong>People.</strong> No IAM users in either account. People sign in through IAM Identity Center, with
+              four-hour sessions.
             </li>
-            <li><strong>CI.</strong> GitHub Actions uses the OIDC roles above, so no long-lived keys exist.</li>
+            <li><strong>CI.</strong> GitHub Actions uses the OIDC roles above, in the site's account, so no long-lived keys exist.</li>
             <li>
-              <strong>Audit trail.</strong> An organization CloudTrail trail records sign-ins and management actions in
-              every Region, with log file validation, KMS encryption and a copy in CloudWatch Logs. Alarms on it email on root use, console sign-in
-              without MFA, IAM policy changes and trail changes.
-            </li>
-            <li>
-              <strong>Threats and posture.</strong> GuardDuty emails high-severity findings. Security Hub checks the account
-              against AWS Foundational Security Best Practices and CIS, AWS Config records changes against 18 rules of its
-              own, Inspector covers EC2, container images and Lambda, and IAM Access Analyzer flags external and unused
-              access.
+              <strong>Audit trail.</strong> An organization CloudTrail trail records sign-ins and management actions in both
+              accounts and every Region, with log file validation, KMS encryption and a copy in CloudWatch Logs. Alarms on
+              it email on root use, console sign-in without MFA, IAM policy changes and trail changes.
             </li>
             <li>
-              <strong>Safe defaults.</strong> S3 Block Public Access is on for the whole account, and EBS volumes are
-              encrypted by default.
+              <strong>Threats and posture.</strong> Each account runs its own checks in us-east-1, where everything runs:
+              GuardDuty emails high-severity findings, Security Hub checks against AWS Foundational Security Best
+              Practices and CIS, AWS Config records changes against 18 rules of its own, and Inspector covers EC2,
+              container images and Lambda. IAM Access Analyzer flags external and unused access across the organization.
             </li>
             <li>
-              <strong>Cost.</strong> A $20 monthly budget warns at 85% and 100% of actual spend and on forecast. Cost
-              Anomaly Detection flags unusual spend, and a billing alarm fires above $10.
+              <strong>Safe defaults.</strong> In both accounts, S3 Block Public Access is on account-wide, EBS volumes in
+              us-east-1 are encrypted by default, public sharing of Systems Manager documents is blocked in every Region,
+              and there are no default VPCs, so nothing gets a network by accident.
+            </li>
+            <li>
+              <strong>Cost.</strong> A $20 monthly budget for both accounts warns at 50%, 80% and 100% of actual spend and
+              on forecast. Cost Anomaly Detection flags unusual spend, and a billing alarm fires above $10.
             </li>
           </ul>
         </div>
@@ -275,7 +307,8 @@ const toc = [
             </li>
             <li>
               <strong>Edge.</strong> Full (strict) TLS to the origin, TLS 1.3, automatic HTTPS rewrites, HTTP/3 and Brotli.
-              The browser integrity check, email address obfuscation and AI crawler blocking are on.
+              The browser integrity check, Bot Fight Mode, email address obfuscation and AI crawler blocking are on. A
+              request header rule adds the secret header CloudFront checks, on HTTPS requests to the site's two names only.
             </li>
             <li>
               <strong>Mail.</strong> The domain's mail runs on iCloud+, with SPF, DKIM and a DMARC policy of reject, which

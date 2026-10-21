@@ -1,19 +1,19 @@
 import type { DiagramData } from './types';
 
-/** /how-it-works/: who can act in the AWS account, what watches it, and where alerts go. Live state, 20 Oct 2026. */
+/** /how-it-works/: who can act in the two AWS accounts, what watches them, and where alerts go. Live state, 21 Oct 2026. */
 export const awsAccount: DiagramData = {
   id: 'aws-account',
   width: 760,
   height: 320,
-  label: 'AWS account: who can act, what watches, and where the alerts go',
+  label: 'AWS accounts: who can act, what watches, and where the alerts go',
   description:
-    'Three kinds of identity can act in the account: the root user, with MFA and no keys; people, through IAM Identity Center; and GitHub Actions, through short-lived OIDC roles. CloudTrail records their sign-ins and management actions, and alarms on it send email. GuardDuty emails high-severity findings, and the budget and anomaly detection email about spend.',
+    "Three kinds of identity can act: the management account's root user, with a hardware key and no access keys (the site's account has no root credentials, and the few tasks that need root there run as short, task-scoped sessions started from the management account); people, through IAM Identity Center; and GitHub Actions, through short-lived OIDC roles in the site's account. The organization trail records sign-ins and management actions in both accounts, and alarms on it send email. GuardDuty in each account emails high-severity findings, and the budget and anomaly detection email about spend.",
   regions: [{ x: 0, y: 12, w: 180, h: 296, radius: 16, tone: 'panel' }],
   nodes: [
-    { x: 10, y: 48, w: 160, h: 64, lines: [{ text: 'Root user', bold: true }, 'MFA, no keys'] },
+    { x: 10, y: 48, w: 160, h: 64, lines: [{ text: 'Root user', bold: true }, 'hardware key'] },
     { x: 10, y: 140, w: 160, h: 64, lines: [{ text: 'People', bold: true }, 'Identity Center'] },
     { x: 10, y: 232, w: 160, h: 64, lines: [{ text: 'GitHub Actions', bold: true }, 'OIDC roles'] },
-    { x: 280, y: 48, w: 200, h: 64, lines: [{ text: 'Threat detection', bold: true }, 'GuardDuty'] },
+    { x: 280, y: 48, w: 200, h: 64, lines: [{ text: 'Threat detection', bold: true }, 'GuardDuty, each account'] },
     { x: 280, y: 140, w: 200, h: 64, lines: [{ text: 'CloudTrail', bold: true }, 'org trail, 4 alarms'] },
     { x: 280, y: 232, w: 200, h: 64, lines: [{ text: 'Cost controls', bold: true }, 'budget, anomalies'] },
     { x: 600, y: 48, w: 160, h: 248, lines: [{ text: 'Email', bold: true }, 'through SNS'], tone: 'accent' },
