@@ -47,8 +47,8 @@ variable "github_repo" {
 }
 
 # Handover inputs: they let a second copy of this stack take over the domain and the request header
-# rule from the first without downtime (README.md, "Moving the site to a new distribution").
-# Leave them at the defaults otherwise.
+# rule from the first, with the origin lock on throughout (README.md, "Moving the site to a new
+# distribution"). Leave them at the defaults otherwise.
 
 variable "attach_domain" {
   description = "false: the distribution has no aliases and the apex and www records aren't managed here. Handover only; leave true otherwise."
