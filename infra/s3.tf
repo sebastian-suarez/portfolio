@@ -1,10 +1,6 @@
-locals {
-  bucket_name = "site-${replace(var.domain, ".", "-")}"
-}
-
 # Private bucket. Only CloudFront (via OAC) can read it; nothing is public.
 resource "aws_s3_bucket" "site" {
-  bucket = local.bucket_name
+  bucket = var.site_bucket
 }
 
 resource "aws_s3_bucket_public_access_block" "site" {

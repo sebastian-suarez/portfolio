@@ -11,8 +11,7 @@ data "aws_caller_identity" "current" {}
 locals {
   account_id = data.aws_caller_identity.current.account_id
 
-  # Same naming rule as ../s3.tf.
-  site_bucket_arn  = "arn:aws:s3:::site-${replace(var.domain, ".", "-")}"
+  site_bucket_arn  = "arn:aws:s3:::${var.site_bucket}"
   distribution_arn = "arn:aws:cloudfront::${local.account_id}:distribution/${var.cloudfront_distribution_id}"
   state_bucket_arn = "arn:aws:s3:::${var.state_bucket}"
   site_state_key   = "portfolio/terraform.tfstate"
