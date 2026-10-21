@@ -69,18 +69,18 @@ aws cloudfront publish-function --name portfolio-viewer-request --if-match "$ETA
 
 ## Moving the site to a new distribution
 
-Three inputs in `variables.tf` let a second copy of these stacks, in another AWS account (a new bucket, distribution and state), take over from the first without downtime. In the same account the OAC, function and ACM validation names would collide. Outside a move the inputs stay at their defaults.
+Three inputs in `variables.tf` let a second copy of these stacks, in another AWS account (a new bucket, distribution and state), take over from the first, with the origin lock on throughout. The domain itself moves with a short outage: CloudFront moves an apex alias to another account only from a disabled distribution, unless AWS Support moves it. In the same account the OAC, function and ACM validation names would collide. Outside a move the inputs stay at their defaults.
 
 - `attach_domain = false`: the new distribution starts without aliases, keeping its certificate, and the new copy doesn't manage the apex and www records.
 - `manage_origin_lock_rule = false`: the new copy doesn't manage the request header rule, so the old copy's rule keeps sending its secret.
 - `origin_verify_extra_sha256`: the digest of the secret that rule sends (it is in the old function's code), so the new function accepts those requests.
 
-The new copy starts with all three set. Then, each step applied before the next:
+The new copy starts with all three set. Then, each step applied before the next. Don't apply the old copy between steps 1 and 3: with the defaults it would put the records back, and with `attach_domain = false` it would remove the aliases before they move.
 
-1. Records: `tofu state rm` the apex and www records in the old copy. Only then set its `attach_domain = false`; setting it first would delete the live records.
-2. Domain: add TXT records `_<domain>` and `_www.<domain>` (DNS-only) holding the new distribution's `*.cloudfront.net` name, disable the old distribution, and move both aliases with `aws cloudfront update-domain-association` from the new account.
-3. New copy: `attach_domain = true` plus `import` blocks for the two records. The apply points them at the new distribution.
-4. Rule, later: `tofu state rm` it in the old copy (then its `manage_origin_lock_rule = false`), and `manage_origin_lock_rule = true` plus an `import` block in the new. That apply switches Cloudflare to the new copy's secret.
+1. Records: `tofu state rm` the apex and www records in the old copy.
+2. Domain: add TXT records `_.<domain>` and `_www.<domain>` (DNS-only) holding the new distribution's `*.cloudfront.net` name, and check that they resolve. Then disable the old distribution and move both aliases with `aws cloudfront update-domain-association` from the new account. The outage runs from the disable until the records point at the new distribution.
+3. New copy: `attach_domain = true` plus `import` blocks for the two records. The apply points them at the new distribution. The old copy can take `attach_domain = false` from now on.
+4. Rule, later: `tofu state rm` it in the old copy, then set its `manage_origin_lock_rule = false`. In the new copy, `manage_origin_lock_rule = true` plus an `import` block; that apply switches Cloudflare to the new copy's secret.
 5. A few minutes after that, empty `origin_verify_extra_sha256` in its own apply, as in rotation step 3: the new function must accept the old secret until Cloudflare has stopped sending it.
 
 ## Project grouping
