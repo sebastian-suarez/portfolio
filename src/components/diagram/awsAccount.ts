@@ -7,7 +7,7 @@ export const awsAccount: DiagramData = {
   height: 320,
   label: 'AWS accounts: who can act, what watches, and where the alerts go',
   description:
-    "Three kinds of identity can act: the management account's root user, with a hardware key and no access keys (the site's account has no root credentials); people, through IAM Identity Center; and GitHub Actions, through short-lived OIDC roles in the site's account. The organization trail records sign-ins and management actions in both accounts, and alarms on it send email. GuardDuty in each account emails high-severity findings, and the budget and anomaly detection email about spend.",
+    "Three kinds of identity can act: the management account's root user, with a hardware key and no access keys (the site's account has no root credentials, and the few tasks that need root there run as short, task-scoped sessions started from the management account); people, through IAM Identity Center; and GitHub Actions, through short-lived OIDC roles in the site's account. The organization trail records sign-ins and management actions in both accounts, and alarms on it send email. GuardDuty in each account emails high-severity findings, and the budget and anomaly detection email about spend.",
   regions: [{ x: 0, y: 12, w: 180, h: 296, radius: 16, tone: 'panel' }],
   nodes: [
     { x: 10, y: 48, w: 160, h: 64, lines: [{ text: 'Root user', bold: true }, 'hardware key'] },

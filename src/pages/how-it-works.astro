@@ -242,8 +242,8 @@ const toc = [
               stopping or deleting CloudTrail trails, the Config recorder, GuardDuty or Security Hub, and no leaving the
               organization or closing the account. The organization trail itself lives in the management account, where
               member accounts can't change it, and an alarm watches it for changes. A resource control policy lets only the organization's identities
-              and AWS services reach S3 in member accounts. Neither applies to the management account, and SCPs don't limit
-              AWS's own service-linked roles; that is one reason nothing runs in the management account.
+              and AWS services reach S3 in member accounts. Neither applies to the management account, which is why the site
+              runs in a member account. SCPs also don't limit AWS's own service-linked roles.
             </li>
             <li>
               <strong>Root users.</strong> The management account's root user signs in with a hardware security key and
