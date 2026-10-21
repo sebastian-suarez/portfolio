@@ -80,6 +80,6 @@ The words on the pages live in `src/data/`:
 ## Deploy
 
 - Pull request: `Build` builds the site and `Terraform plan` plans the infrastructure. Both must pass, and `main` only changes through pull requests.
-- Merge to `main`: when anything outside `infra/` changed, `Deploy` builds the site, syncs `dist/` to S3 (hashed assets cached for a year, everything else revalidated on each request) and invalidates CloudFront. When `infra/` changed, `Infra` applies the CI roles (`infra/iam/`) first, then the site stack (`infra/`).
+- Merge to `main`: when anything outside `infra/` changed, `Deploy` builds the site, syncs `dist/` to S3 (browsers cache hashed assets for a year and revalidate everything else) and waits for a CloudFront invalidation to finish, so the new pages are live when the job ends. When `infra/` changed, `Infra` applies the CI roles (`infra/iam/`) first, then the site stack (`infra/`).
 
 The roles and their permissions boundary, the origin lock, secret rotation and recovery steps are in [infra/README.md](infra/README.md).
