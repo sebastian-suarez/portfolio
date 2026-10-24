@@ -34,7 +34,7 @@ Set up in parallel on 20 Oct 2026, outside this build: OpenTofu in `infra/` (pri
 
 ## Review log
 
-Plan attack (Codex adversarial review, 20 Oct 2026), five findings:
+Plan attack (adversarial review, 20 Oct 2026), five findings:
 
 - Accepted: verify every requested font, not just asset paths. The browser audit now checks `document.fonts` for each family and weight; the unused Barlow Condensed 500 was dropped from the config.
 - Accepted: diagrams need a text alternative and a readable phone size. Each dataset carries a `description` rendered as the SVG `<desc>` and wired through `aria-describedby`; the hero got a 0.58 floor, the cards keep 0.6.
@@ -44,7 +44,7 @@ Plan attack (Codex adversarial review, 20 Oct 2026), five findings:
 
 Build finding: Vite 8 minifies CSS with Lightning CSS, which folds `animation-timeline` into the `animation` shorthand; browsers reject that and drop the rule. CSS minification is off (`cssMinify: false`), costing about 6 KB on a 21 KB stylesheet.
 
-Implementation round 1 (Codex adversarial review, 20 Oct 2026), three findings, all accepted:
+Implementation round 1 (adversarial review, 20 Oct 2026), three findings, all accepted:
 
 - Scrollable diagram hosts were not keyboard-reachable in Safari. Hosts with a scale floor now carry `tabindex="0"` and the diagram's name and description; the SVG keeps them otherwise.
 - Accordion chips were unreachable on touch devices at or above 900 px, because a tap does not focus a button in Safari. Under `(hover: none)` the chips are always visible.
@@ -52,7 +52,7 @@ Implementation round 1 (Codex adversarial review, 20 Oct 2026), three findings, 
 
 Lighthouse (20 Oct 2026, local build, cached Chrome for Testing): mobile 95 / 96 / 100 / 100, desktop 100 / 96 / 100 / 100 for performance / accessibility / best practices / SEO. CLS 0 on both. The accessibility deduction is the colour-contrast audit reading the start state of the scroll-driven reveals (cards at 0.25, words at 0.18 opacity) below the fold at load; the visible end state passes.
 
-Implementation round 1 (fresh-context Claude review, 20 Oct 2026), eleven findings:
+Implementation round 1 (fresh-context review, 20 Oct 2026), eleven findings:
 
 - Accepted: the accent focus ring vanished on the accent contact block. `#contact :focus-visible` now uses the ink-on-tan colour.
 - Accepted: the "Infrastructure, interfaces" label straddled the outer ring's outline (same as the comp). Moved from y 30 to y 40.

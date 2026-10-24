@@ -32,17 +32,17 @@ Owner decisions so far: hero keeps the current title ("Backend lead and architec
 - New `src/data/cv.ts` from the design's `content.json`, checked line by line against the PDF.
 - Astro 7 static, build-time TSX, Tailwind 4 kept. `global.css` component classes rewritten from `folio.css`. Diagram regions move from hard-coded dark colours to tones.
 - New: Header, ClientWork, Experience, Background, Footer components, three diagram datasets, `src/pages/resume.astro`, `src/scripts/project-tabs.ts`, `src/scripts/diagram-reveal.ts`. Nav.tsx is replaced by Header.
-- Single attempt (no acceptance suite, so no rival Codex draft).
+- Single attempt (no acceptance suite, so no rival draft).
 
 ## Not doing
 Career timeline chart (the CV gives Intive no end date), dark mode, PDF download.
 
 ## Verify
-`astro check`, `astro build`, `check:release`, screenshots at 1440 / 390 / 360, tab switching by mouse, keyboard and back button, reduced motion and no-JS renders, the GSAP path with `view()` forced off, Lighthouse. Then one review round on the working result: a fresh-context Claude subagent on the artifact, and Codex adversarial review with the task.
+`astro check`, `astro build`, `check:release`, screenshots at 1440 / 390 / 360, tab switching by mouse, keyboard and back button, reduced motion and no-JS renders, the GSAP path with `view()` forced off, Lighthouse. Then one review round on the working result: a fresh-context review of the artifact alone, and an adversarial review with the task.
 
 ## Review log
 
-Plan attack (Codex adversarial review, 20 Oct 2026), three findings, all accepted:
+Plan attack (adversarial review, 20 Oct 2026), three findings, all accepted:
 
 - Tab switches change the page height and unhide diagrams, but the diagram-overflow helper and the GSAP fallback only re-measure on resize. Accepted: every tab change (click, hash, back button) fires one layout-change event; the overflow helper re-measures and the GSAP fallback calls `ScrollTrigger.refresh()`. Test: switch between panels of different heights, then keyboard-scroll a diagram that was hidden.
 - The manifesto scrub starts words at 0.18 opacity, about 1.4:1 contrast on the light canvas, and readers can stop scrolling mid-way. Accepted: the scrub animates colour from `#7d8aa3` (3:1 on the canvas, enough for text this size) to ink, never opacity, in both the CSS and the GSAP path.
@@ -50,12 +50,12 @@ Plan attack (Codex adversarial review, 20 Oct 2026), three findings, all accepte
 
 Build finding: on phones the client-work layout switched from grid to flex but kept the grid's `align-items: start`, so the stage grew to its widest diagram (536 px on a 390 px screen) instead of scrolling the diagram. Fixed with `align-items: stretch` and `width: 100%` below 700 px. The old "no horizontal scroll" check missed it because `html` clips overflow; the check now measures every element.
 
-Implementation round 1 (Codex adversarial review with the task, 20 Oct 2026), two findings, both accepted after reproducing them with print emulation:
+Implementation round 1 (adversarial review with the task, 20 Oct 2026), two findings, both accepted after reproducing them with print emulation:
 
 - Printing dropped the two inactive client projects: Tailwind's `[hidden] { display: none !important }` lives in `@layer base`, and a layered `!important` beats the unlayered print override. The override now sits in `@layer base`.
 - Printing left unvisited diagrams in their hidden entrance state. Entrance states and the scroll-driven card rise and word scrub are now `screen` only, and print turns off transitions and animations and resets the GSAP fallback's inline start styles. Found alongside it: the cards printed at 25% opacity. Fixed by the same change.
 
-Implementation round 1 (fresh-context review, 20 Oct 2026). The Fable subagent stopped early because the account was out of Fable credits, so per the fallback rule the review ran on Codex (GPT-6 Astra) at `xhigh`, its highest effort. Three findings, all accepted and covered by new checks:
+Implementation round 1 (fresh-context review, 20 Oct 2026). The first reviewer was unavailable, so the stand-in ran at its highest effort. Three findings, all accepted and covered by new checks:
 
 - Back did not restore the tab when the earlier history entry had a non-project hash (load `/#projects`, pick Intive, press Back). Each entry now records its tab in history state before a new one is pushed.
 - Between 701 and 1000 px the heading line break is hidden with no space left, giving "Training PDFs.A shorter wait." A space now precedes each `<br>`.
@@ -67,4 +67,4 @@ Verified after fixes: `astro check` clean, build green, `check:release` passes, 
 
 `src/pages/404.astro` builds `dist/404.html`, which CloudFront already serves (status 404) for any missing path, since S3 answers 403 for a missing key and `infra/cloudfront.tf` maps 403 and 404 to it. Before this, `/404.html` did not exist, so missing paths returned S3's 403 XML. The page is `noindex`, uses root-absolute links only (the header takes `base="/"` so its section links become `/#work` and so on), and carries a small diagram of the request path. `.page` now has `overflow: clip`, so the light field no longer adds empty scroll below short pages; the sticky column still works.
 
-Verified: built page at `/nope`, `/404` and a nested path returns 404, styled, with working links; no overflow at 1440 / 900 / 700 / 390 / 360 px (a grid column needed `minmax(0, 1fr)` on phones); focus ring on every tab stop; print shows the finished page; the 30 home-page checks still pass. Reviews: Codex adversarial review approved with no findings. Fable was still out of credits, so the fresh-context review ran on Codex (GPT-6 Astra) at `xhigh` and found nothing. It could not launch a browser in its sandbox, so the layout, keyboard and print checks above were run separately.
+Verified: built page at `/nope`, `/404` and a nested path returns 404, styled, with working links; no overflow at 1440 / 900 / 700 / 390 / 360 px (a grid column needed `minmax(0, 1fr)` on phones); focus ring on every tab stop; print shows the finished page; the 30 home-page checks still pass. Reviews: the adversarial review approved with no findings, and the fresh-context review found nothing. It could not launch a browser in its sandbox, so the layout, keyboard and print checks above were run separately.
