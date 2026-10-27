@@ -99,9 +99,13 @@ resource "aws_s3_bucket_policy" "site" {
 
 data "aws_caller_identity" "current" {}
 
-# The target is the account's access-log bucket, created outside OpenTofu with the account baseline.
+# The account's access-log bucket, created outside OpenTofu with the account baseline.
+locals {
+  access_log_bucket = "s3-access-logs-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+}
+
 resource "aws_s3_bucket_logging" "site" {
   bucket        = aws_s3_bucket.site.id
-  target_bucket = "s3-access-logs-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+  target_bucket = local.access_log_bucket
   target_prefix = "${var.site_bucket}/"
 }

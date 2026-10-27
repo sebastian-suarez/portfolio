@@ -6,7 +6,7 @@ Three OpenTofu root modules share one state bucket (`backend.hcl`, S3-native loc
 
 | Module | What | Applied by |
 | --- | --- | --- |
-| `infra/` | S3, CloudFront, ACM, Cloudflare DNS and request header rule. No IAM. | GitHub Actions, `tofu-apply` role |
+| `infra/` | S3, CloudFront (with standard logging v2 to the account's access-log bucket), ACM, Cloudflare DNS and request header rule. No IAM. | GitHub Actions, `tofu-apply` role |
 | `infra/iam/` | The deploy, tofu-plan and tofu-apply roles, and the `portfolio` Resource Group | GitHub Actions, `tofu-iam` role, before `infra/` |
 | `infra/bootstrap/` | GitHub OIDC provider, the permissions boundary `portfolio-github-boundary`, the `tofu-iam` role | A laptop with admin credentials, rarely |
 
@@ -18,7 +18,7 @@ CI can change IAM, but only below a ceiling it can't move. The `tofu-iam` role m
 | --- | --- | --- | --- |
 | `portfolio-github-deploy` | `environment:production` | write the site bucket, invalidate the distribution | `infra/iam/` |
 | `portfolio-github-tofu-plan` | `pull_request` | read both stacks and their state | `infra/iam/` |
-| `portfolio-github-tofu-apply` | `environment:infra` | manage the site bucket, CloudFront, ACM, and the site stack's state | `infra/iam/` |
+| `portfolio-github-tofu-apply` | `environment:infra` | manage the site bucket, CloudFront, ACM, CloudFront log delivery, and the site stack's state | `infra/iam/` |
 | `portfolio-github-tofu-iam` | `environment:infra-iam` | manage `portfolio-github-*` roles under the boundary, the Resource Group, and the IAM stack's state | `infra/bootstrap/` |
 
 The three roles in `infra/iam/` carry the boundary, and each may hold only its own inline policy: any other shows up as drift in plans, and the next apply deletes it. That includes `AWSRevokeOlderSessions`, which the IAM console's "Revoke active sessions" adds: after revoking, don't merge an `infra/iam/` change until the revoked sessions have expired (an hour with the current settings). The boundaries are permanent. Never remove one, not even to roll back: an inline policy planted by a bad run is harmless only while the boundary is there.
