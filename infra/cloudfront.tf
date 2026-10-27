@@ -103,3 +103,31 @@ resource "aws_cloudfront_distribution" "site" {
     minimum_protocol_version = "TLSv1.2_2021"
   }
 }
+
+# Standard logging (v2). A distribution can have only one delivery source.
+resource "aws_cloudwatch_log_delivery_source" "cloudfront" {
+  name         = "${var.project}-cloudfront"
+  log_type     = "ACCESS_LOGS"
+  resource_arn = aws_cloudfront_distribution.site.arn
+}
+
+# The access-log bucket's policy lets delivery.logs.amazonaws.com write under cloudfront/ only.
+# output_format can't change after creation.
+resource "aws_cloudwatch_log_delivery_destination" "cloudfront_s3" {
+  name          = "${var.project}-cloudfront-s3"
+  output_format = "w3c"
+
+  delivery_destination_configuration {
+    destination_resource_arn = "arn:aws:s3:::${local.access_log_bucket}/cloudfront"
+  }
+}
+
+resource "aws_cloudwatch_log_delivery" "cloudfront_s3" {
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.cloudfront.name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.cloudfront_s3.arn
+
+  s3_delivery_configuration = [{
+    suffix_path                 = "{DistributionId}/{yyyy}/{MM}/{dd}/{HH}"
+    enable_hive_compatible_path = false
+  }]
+}

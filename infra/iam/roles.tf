@@ -90,6 +90,13 @@ data "aws_iam_policy_document" "tofu_plan" {
     resources = ["*"]
   }
 
+  statement {
+    sid       = "ReadLogDelivery"
+    effect    = "Allow"
+    actions   = ["logs:GetDeliverySource", "logs:GetDeliveryDestination", "logs:GetDelivery", "logs:ListTagsForResource"]
+    resources = local.log_delivery_arns
+  }
+
   # Planning this module: its state, the roles it manages and the Resource Group.
   statement {
     sid       = "ReadIamState"
@@ -164,6 +171,27 @@ data "aws_iam_policy_document" "tofu_apply" {
     effect    = "Allow"
     actions   = ["cloudfront:*", "acm:*"]
     resources = ["*"]
+  }
+
+  statement {
+    sid    = "ManageLogDelivery"
+    effect = "Allow"
+    actions = [
+      "logs:PutDeliverySource", "logs:GetDeliverySource", "logs:DeleteDeliverySource",
+      "logs:PutDeliveryDestination", "logs:GetDeliveryDestination", "logs:DeleteDeliveryDestination",
+      "logs:CreateDelivery", "logs:GetDelivery", "logs:DeleteDelivery", "logs:UpdateDeliveryConfiguration",
+      "logs:TagResource", "logs:UntagResource", "logs:ListTagsForResource",
+    ]
+    resources = local.log_delivery_arns
+  }
+
+  # CloudWatch Logs reads the destination bucket's policy to check it already allows delivery. No
+  # s3:PutBucketPolicy: that policy is managed outside OpenTofu and also covers other buckets' logs.
+  statement {
+    sid       = "ReadAccessLogBucketPolicy"
+    effect    = "Allow"
+    actions   = ["s3:GetBucketPolicy"]
+    resources = [local.access_log_bucket_arn]
   }
 }
 
