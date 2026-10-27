@@ -70,6 +70,24 @@ data "aws_iam_policy_document" "site_bucket" {
       values   = [aws_cloudfront_distribution.site.arn]
     }
   }
+
+  statement {
+    sid       = "DenyInsecureTransport"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = [aws_s3_bucket.site.arn, "${aws_s3_bucket.site.arn}/*"]
+
+    principals {
+      type        = "*"
+      identifiers = ["*"]
+    }
+
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
 }
 
 resource "aws_s3_bucket_policy" "site" {
@@ -77,4 +95,13 @@ resource "aws_s3_bucket_policy" "site" {
   policy = data.aws_iam_policy_document.site_bucket.json
 
   depends_on = [aws_s3_bucket_public_access_block.site]
+}
+
+data "aws_caller_identity" "current" {}
+
+# The target is the account's access-log bucket, created outside OpenTofu with the account baseline.
+resource "aws_s3_bucket_logging" "site" {
+  bucket        = aws_s3_bucket.site.id
+  target_bucket = "s3-access-logs-${data.aws_caller_identity.current.account_id}-${var.aws_region}"
+  target_prefix = "${var.site_bucket}/"
 }
